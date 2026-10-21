@@ -83,13 +83,26 @@ public sealed class LADIDGame : MonoBehaviour
         else banner.gameObject.SetActive(false);
     }
     IEnumerator HideBanner(){yield return new WaitForSeconds(1.1f);if(!changing)banner.gameObject.SetActive(false);}
-    IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||world!=World.Volcano)continue;StartCoroutine(Meteor(new Vector2(Random.Range(-6.9f,6.9f),Random.Range(-3.9f,3.9f))));}}
+    IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||world!=World.Volcano)continue;StartCoroutine(Meteor(new Vector2(Random.Range(-7.3f,7.3f),Random.Range(-4.3f,4.3f))));}}
     IEnumerator Meteor(Vector2 at)
     {
         GameObject warn=Disc("Impact warning",at,1.3f,new Color(1,.12f,.04f,.4f),2);
         float t=0;while(t<1.05f){if(ended||changing||world!=World.Volcano){Destroy(warn);yield break;}t+=Time.deltaTime;warn.transform.localScale=Vector3.one*(.82f+Mathf.PingPong(Time.time*2.5f,.2f));yield return null;}
-        Destroy(warn);GameObject hit=Disc("Meteor impact",at,1.3f,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,.52f,new Color(1,.78f,.25f),4);Destroy(core,10f);
+        Destroy(warn);GameObject hit=Disc("Meteor impact",at,1.3f,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,.52f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));
         if(Vector2.Distance(player.position,at)<.9f)TakeDamage(30f);yield return new WaitForSeconds(.28f);Destroy(hit);
+    }
+    IEnumerator ShrinkCore(GameObject core,float duration)
+    {
+        float elapsed=0f;float initialSize=core.transform.localScale.x;
+        while(elapsed<duration)
+        {
+            if(!core)yield break;
+            elapsed+=Time.deltaTime;
+            float scale=Mathf.Lerp(initialSize,0f,elapsed/duration);
+            core.transform.localScale=Vector3.one*scale;
+            yield return null;
+        }
+        if(core)Destroy(core);
     }
     IEnumerator TideLoop(){while(true){yield return new WaitForSeconds(Random.Range(3f,4.2f));if(ended||changing||world!=World.Tidal)continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f)));}}
     IEnumerator Wave(float y)
@@ -112,7 +125,8 @@ public sealed class LADIDGame : MonoBehaviour
         for(int i=0;i<hazardsRoot.childCount;i++)
         {
             Transform hazard=hazardsRoot.GetChild(i);
-            if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<.52f)TakeDamage(10f*dt);
+            float contactRadius=(hazard.localScale.x+.52f)*.5f;
+            if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<contactRadius)TakeDamage(10f*dt);
         }
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
