@@ -7,6 +7,7 @@ public sealed class LADIDGame : MonoBehaviour
     const float W = 8f, H = 5f, PhaseSeconds = 22f;
     enum World { Volcano, Tidal }
     Transform player;
+    Transform hazardsRoot;
     Camera cam;
     Text worldText, timerText, livesText, messageText;
     Image banner, flash;
@@ -18,6 +19,7 @@ public sealed class LADIDGame : MonoBehaviour
     void Start()
     {
         Application.targetFrameRate = 60;
+        hazardsRoot = new GameObject("Dimension Hazards").transform;
         cam = new GameObject("Camera").AddComponent<Camera>();
         cam.orthographic = true; cam.orthographicSize = 6.5f; cam.transform.position = new Vector3(0,0,-10);
         cam.backgroundColor = new Color(.12f,.09f,.1f);
@@ -64,10 +66,11 @@ public sealed class LADIDGame : MonoBehaviour
 
     IEnumerator PhaseLoop()
     {
-        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); SetWorld(world==World.Volcano?World.Tidal:World.Volcano,false); changing=false;}
+        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; ClearHazards(); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); SetWorld(world==World.Volcano?World.Tidal:World.Volcano,false); changing=false;}
     }
     void SetWorld(World next,bool first)
     {
+        if(!first) ClearHazards();
         world=next; phaseTime=PhaseSeconds; cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):new Color(.04f,.19f,.27f);
         worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":"02  /  TIDAL WORLD";
         messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN";
@@ -80,7 +83,7 @@ public sealed class LADIDGame : MonoBehaviour
     {
         GameObject warn=Disc("Impact warning",at,1.3f,new Color(1,.12f,.04f,.4f),2);
         float t=0;while(t<1.05f){if(ended||changing||world!=World.Volcano){Destroy(warn);yield break;}t+=Time.deltaTime;warn.transform.localScale=Vector3.one*(.82f+Mathf.PingPong(Time.time*2.5f,.2f));yield return null;}
-        Destroy(warn);GameObject hit=Disc("Meteor impact",at,1.3f,new Color(1,.28f,.06f),3);Disc("Impact core",at,.52f,new Color(1,.78f,.25f),4);
+        Destroy(warn);GameObject hit=Disc("Meteor impact",at,1.3f,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,.52f,new Color(1,.78f,.25f),4);Destroy(core,10f);
         if(Vector2.Distance(player.position,at)<.9f)Hit();yield return new WaitForSeconds(.28f);Destroy(hit);
     }
     IEnumerator TideLoop(){while(true){yield return new WaitForSeconds(Random.Range(3f,4.2f));if(ended||changing||world!=World.Tidal)continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f)));}}
@@ -88,18 +91,21 @@ public sealed class LADIDGame : MonoBehaviour
     {
         float band=Random.Range(1.05f,1.55f);bool left=Random.value>.5f;float x=left?-10:10,end=left?10:-10;
         var wave=Rect("Tsunami",new Vector3(x,y,-.3f),2,band*2,new Color(.12f,.75f,.95f,.72f),3);
-        banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);yield return new WaitForSeconds(1.05f);banner.gameObject.SetActive(false);
-        bool hit=false;while(left?wave.transform.position.x<end:wave.transform.position.x>end)
+        wave.transform.SetParent(hazardsRoot,true);
+        banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);yield return new WaitForSeconds(1.05f);
+        if(ended||changing||world!=World.Tidal){Destroy(wave);yield break;}banner.gameObject.SetActive(false);
+        bool hit=false;while(!ended&&!changing&&world==World.Tidal&&(left?wave.transform.position.x<end:wave.transform.position.x>end))
         {
-            if(ended||changing||world!=World.Tidal){Destroy(wave);yield break;}float dt=Time.deltaTime;var p=wave.transform.position;p.x+=(left?16:-16)*dt;wave.transform.position=p;
+            float dt=Time.deltaTime;var p=wave.transform.position;p.x+=(left?16:-16)*dt;wave.transform.position=p;
             if(!hit&&Mathf.Abs(player.position.y-y)<band+.34f&&Mathf.Abs(player.position.x-p.x)<1.25f){hit=true;Hit();player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
             yield return null;
         }Destroy(wave);
     }
     void Hit(){if(ended)return;lives--;flashTime=.7f;if(lives<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
-    void Restart(){StopAllCoroutines();foreach(var r in FindObjectsOfType<SpriteRenderer>())if(r.gameObject.name.Contains("Meteor")||r.gameObject.name.Contains("Impact")||r.gameObject.name.Contains("Tsunami"))Destroy(r.gameObject);lives=3;survived=0;ended=false;changing=false;flashTime=0;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());}
+    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);}
+    void Restart(){StopAllCoroutines();ClearHazards();lives=3;survived=0;ended=false;changing=false;flashTime=0;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
-    GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
+    GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Text Label(Transform root,string value,int size,TextAnchor align,Vector2 amin,Vector2 amax,Vector2 pos,Vector2 dim,Color color){var o=new GameObject("Label");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=amin;r.anchorMax=amax;r.pivot=new Vector2(amin.x==amax.x?amin.x:.5f,amin.y==amax.y?amin.y:.5f);r.anchoredPosition=pos;r.sizeDelta=dim;var t=o.AddComponent<Text>();t.text=value;t.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");t.fontSize=size;t.fontStyle=FontStyle.Bold;t.alignment=align;t.color=color;t.horizontalOverflow=HorizontalWrapMode.Overflow;return t;}
     static Image Panel(Transform root,Vector2 anchor,Vector2 pos,Vector2 size,Color color){var o=new GameObject("Panel");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=r.anchorMax=anchor;r.pivot=anchor;r.anchoredPosition=pos;r.sizeDelta=size;var i=o.AddComponent<Image>();i.color=color;return i;}
     static class Sprites{static Sprite square,circle;public static Sprite Square=>square??(square=Make(false));public static Sprite Circle=>circle??(circle=Make(true));static Sprite Make(bool round){int n=round?64:2;var t=new Texture2D(n,n,TextureFormat.RGBA32,false);t.filterMode=FilterMode.Bilinear;var pixels=new Color[n*n];for(int y=0;y<n;y++)for(int x=0;x<n;x++){float dx=(x+.5f)/n*2-1,dy=(y+.5f)/n*2-1;pixels[y*n+x]=!round||dx*dx+dy*dy<=1?Color.white:Color.clear;}t.SetPixels(pixels);t.Apply();return Sprite.Create(t,new Rect(0,0,n,n),new Vector2(.5f,.5f),n);}}
