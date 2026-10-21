@@ -87,7 +87,7 @@ public sealed class LADIDGame : MonoBehaviour
     IEnumerator Meteor(Vector2 at)
     {
         GameObject warn=Disc("Impact warning",at,2.4f,new Color(1,.12f,.04f,.4f),2);
-        float t=0;while(t<1.05f){if(ended||changing||world!=World.Volcano){Destroy(warn);yield break;}t+=Time.deltaTime;warn.transform.localScale=Vector3.one*(.82f+Mathf.PingPong(Time.time*2.5f,.2f));yield return null;}
+        float t=0;while(t<1.05f){if(ended||changing||world!=World.Volcano){Destroy(warn);yield break;}t+=Time.deltaTime;yield return null;}
         Destroy(warn);GameObject hit=Disc("Meteor impact",at,2.4f,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,1.2f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));
         if(Vector2.Distance(player.position,at)<1.45f)TakeDamage(30f);yield return new WaitForSeconds(.28f);Destroy(hit);
     }
