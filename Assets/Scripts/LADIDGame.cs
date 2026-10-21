@@ -103,7 +103,7 @@ public sealed class LADIDGame : MonoBehaviour
         {
             float dt=Time.deltaTime;var p=wave.transform.position;p.x+=(left?16:-16)*dt;wave.transform.position=p;
             bool touching=Mathf.Abs(player.position.y-y)<band+.34f&&Mathf.Abs(player.position.x-p.x)<1.25f;
-            if(touching){TakeDamage(10f*dt);if(!hit){hit=true;player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}}
+            if(touching&&!hit){hit=true;TakeDamage(40f);player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
             yield return null;
         }Destroy(wave);
     }
@@ -112,7 +112,7 @@ public sealed class LADIDGame : MonoBehaviour
         for(int i=0;i<hazardsRoot.childCount;i++)
         {
             Transform hazard=hazardsRoot.GetChild(i);
-            if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<.52f)TakeDamage(5f*dt);
+            if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<.52f)TakeDamage(10f*dt);
         }
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
