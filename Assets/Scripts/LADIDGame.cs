@@ -8,11 +8,13 @@ public sealed class LADIDGame : MonoBehaviour
     enum World { Volcano, Tidal }
     Transform player;
     Transform hazardsRoot;
+    SpriteRenderer playerRenderer;
+    Color playerColor = new Color(.88f,.96f,1f);
     Camera cam;
     Text worldText, timerText, livesText, messageText;
     Image banner, flash;
     World world;
-    float phaseTime, survived, flashTime, health = 100f;
+    float phaseTime, survived, flashTime, damageTintTime, health = 100f;
     bool ended, changing;
 
     void Start()
@@ -29,7 +31,8 @@ public sealed class LADIDGame : MonoBehaviour
         Rect("Bottom edge",new Vector3(0,-5.1f),16.3f,.2f,new Color(.9f,.3f,.16f),1);
         Rect("Left edge",new Vector3(-8.1f,0),.2f,10.3f,new Color(.9f,.3f,.16f),1);
         Rect("Right edge",new Vector3(8.1f,0),.2f,10.3f,new Color(.9f,.3f,.16f),1);
-        player = Rect("Player",Vector3.zero,.52f,.52f,new Color(.88f,.96f,1),5).transform;
+        player = Rect("Player",Vector3.zero,.52f,.52f,playerColor,5).transform;
+        playerRenderer = player.GetComponent<SpriteRenderer>();
         BuildHud();
         SetWorld(World.Volcano,true);
         StartCoroutine(PhaseLoop()); StartCoroutine(VolcanoLoop()); StartCoroutine(TideLoop());
@@ -45,7 +48,9 @@ public sealed class LADIDGame : MonoBehaviour
         timerText.text="NEXT COLLAPSE  "+Mathf.CeilToInt(phaseTime).ToString("00")+"s";
         ApplyCoreContactDamage(dt);
         livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";
-        if(flashTime>0){flashTime-=dt;flash.color=new Color(1,.15f,.1f,Mathf.Clamp01(flashTime*1.4f));}
+        if(damageTintTime>0){damageTintTime-=dt;playerRenderer.color=new Color(1f,.16f,.16f);}
+        else playerRenderer.color=playerColor;
+        if(flashTime>0){flashTime-=dt;flash.color=new Color(1,.15f,.1f,Mathf.Clamp01(flashTime*.35f));}
     }
 
     void BuildHud()
@@ -110,9 +115,9 @@ public sealed class LADIDGame : MonoBehaviour
             if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<.52f)TakeDamage(1f*dt);
         }
     }
-    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.7f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
+    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
     void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);}
-    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;ended=false;changing=false;flashTime=0;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());}
+    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;ended=false;changing=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Text Label(Transform root,string value,int size,TextAnchor align,Vector2 amin,Vector2 amax,Vector2 pos,Vector2 dim,Color color){var o=new GameObject("Label");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=amin;r.anchorMax=amax;r.pivot=new Vector2(amin.x==amax.x?amin.x:.5f,amin.y==amax.y?amin.y:.5f);r.anchoredPosition=pos;r.sizeDelta=dim;var t=o.AddComponent<Text>();t.text=value;t.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");t.fontSize=size;t.fontStyle=FontStyle.Bold;t.alignment=align;t.color=color;t.horizontalOverflow=HorizontalWrapMode.Overflow;return t;}
