@@ -35,7 +35,6 @@ public sealed class LADIDGame : MonoBehaviour
     readonly List<FissureData> fissures = new List<FissureData>();
     readonly List<LightZone> lightZones = new List<LightZone>();
     float phaseTime, phaseDuration, survived, flashTime, damageTintTime, health = 100f;
-    float lightRemovalInterval, nextLightRemovalTime;
     const int DarknessMaskWidth=192, DarknessMaskHeight=108;
     int stage = 1;
     bool ended, changing, falling, overlapMode;
@@ -77,7 +76,6 @@ public sealed class LADIDGame : MonoBehaviour
         if(!changing&&IsWorldActive(World.Darkness))
         {
             ApplyDarknessDamage(dt);
-            if(lightZones.Count>1&&Time.time>=nextLightRemovalTime){RemoveDarkLight();nextLightRemovalTime=Time.time+lightRemovalInterval;}
             UpdateDarknessMask();
         }
         livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";
@@ -329,7 +327,7 @@ public sealed class LADIDGame : MonoBehaviour
     }
     void CreateDarknessLights()
     {
-        lightZones.Clear();int count=Mathf.Max(3,8-(stage-1)/2);float radius=1.65f;
+        lightZones.Clear();int count=Mathf.Max(1,9-stage);float radius=1.65f;
         for(int i=0;i<count;i++)
         {
             Vector2 position=RandomWorldPosition(-7.1f,7.1f,-4.1f,4.1f);int attempts=0;
@@ -342,12 +340,6 @@ public sealed class LADIDGame : MonoBehaviour
             GameObject source=Disc("Light source",position,.24f,new Color(1f,.96f,.68f,.95f),4);
             lightZones.Add(new LightZone{position=position,radius=radius,glow=glow,source=source});
         }
-        lightRemovalInterval=phaseDuration/(count+1f);nextLightRemovalTime=Time.time+lightRemovalInterval;
-    }
-    void RemoveDarkLight()
-    {
-        if(lightZones.Count<=1)return;int index=Random.Range(0,lightZones.Count);LightZone light=lightZones[index];
-        if(light.glow)Destroy(light.glow);if(light.source)Destroy(light.source);lightZones.RemoveAt(index);
     }
     void ApplyDarknessDamage(float dt)
     {
