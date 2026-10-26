@@ -96,12 +96,8 @@ public sealed class LADIDGame : MonoBehaviour
     World RandomWorld(){World next=world;while(next==world)next=(World)Random.Range(0,4);return next;}
     World RandomWorldExcept(World excluded){World next=excluded;while(next==excluded)next=(World)Random.Range(0,4);return next;}
     bool IsWorldActive(World candidate){return world==candidate||(overlapMode&&secondaryWorld==candidate);}
-    int GetWorldSide(World candidate){if(!overlapMode)return 0;return candidate==world?-1:candidate==secondaryWorld?1:0;}
-    Vector2 RandomWorldPosition(World dimension,float minX,float maxX,float minY,float maxY)
+    Vector2 RandomWorldPosition(float minX,float maxX,float minY,float maxY)
     {
-        int side=GetWorldSide(dimension);
-        if(side<0)maxX=Mathf.Min(maxX,-.55f);
-        else if(side>0)minX=Mathf.Max(minX,.55f);
         return new Vector2(Random.Range(minX,maxX),Random.Range(minY,maxY));
     }
     string WorldName(World dimension)
@@ -153,7 +149,7 @@ public sealed class LADIDGame : MonoBehaviour
         {
             leftFieldRenderer.color=WorldFieldColor(world);rightFieldRenderer.color=WorldFieldColor(secondaryWorld);cam.backgroundColor=new Color(.035f,.035f,.05f);
             worldText.text="OVERLAP  /  "+WorldName(world)+"  +  "+WorldName(secondaryWorld);
-            messageText.text="DIMENSION OVERLAP  •  LEFT: "+WorldName(world)+"  /  RIGHT: "+WorldName(secondaryWorld);
+            messageText.text=WorldName(world)+" + "+WorldName(secondaryWorld)+"  •  BOTH PATTERNS ACTIVE ACROSS THE FIELD";
         }
         else
         {
@@ -166,7 +162,7 @@ public sealed class LADIDGame : MonoBehaviour
         else banner.gameObject.SetActive(false);
     }
     IEnumerator HideBanner(){yield return new WaitForSeconds(1.1f);if(!changing)banner.gameObject.SetActive(false);}
-    IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||!IsWorldActive(World.Volcano))continue;int projectileCount=Mathf.Min(stage,6);for(int i=0;i<projectileCount;i++)StartCoroutine(Meteor(RandomWorldPosition(World.Volcano,-7.3f,7.3f,-4.3f,4.3f)));}}
+    IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||!IsWorldActive(World.Volcano))continue;int projectileCount=Mathf.Min(stage,6);for(int i=0;i<projectileCount;i++)StartCoroutine(Meteor(RandomWorldPosition(-7.3f,7.3f,-4.3f,4.3f)));}}
     IEnumerator Meteor(Vector2 at)
     {
         float impactSize=Random.Range(1.2f,3.6f);
@@ -189,12 +185,12 @@ public sealed class LADIDGame : MonoBehaviour
         }
         if(core)Destroy(core);
     }
-    IEnumerator TideLoop(){while(true){float intervalReduction=(stage-1)*.25f;yield return new WaitForSeconds(Mathf.Max(.65f,Random.Range(3f,4.2f)-intervalReduction));if(ended||changing||!IsWorldActive(World.Tidal))continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f),GetWorldSide(World.Tidal)));}}
-    IEnumerator EarthquakeLoop(){while(true){yield return new WaitForSeconds(Random.Range(2.7f,3.8f));if(ended||changing||!IsWorldActive(World.Earthquake))continue;int fissuresPerQuake=Mathf.Min(1+(stage-1)/2,5);for(int i=0;i<fissuresPerQuake;i++)StartCoroutine(Fissure(GetWorldSide(World.Earthquake)));}}
+    IEnumerator TideLoop(){while(true){float intervalReduction=(stage-1)*.25f;yield return new WaitForSeconds(Mathf.Max(.65f,Random.Range(3f,4.2f)-intervalReduction));if(ended||changing||!IsWorldActive(World.Tidal))continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f),0));}}
+    IEnumerator EarthquakeLoop(){while(true){yield return new WaitForSeconds(Random.Range(2.7f,3.8f));if(ended||changing||!IsWorldActive(World.Earthquake))continue;int fissuresPerQuake=Mathf.Min(1+(stage-1)/2,5);for(int i=0;i<fissuresPerQuake;i++)StartCoroutine(Fissure(0));}}
     IEnumerator AcidRainLoop(){while(true){yield return new WaitForSeconds(Random.Range(.06f,.11f));if(ended||changing||!IsWorldActive(World.AcidRain))continue;StartCoroutine(AcidDrop());}}
     IEnumerator AcidDrop()
     {
-        float x=RandomWorldPosition(World.AcidRain,-7.8f,7.8f,0f,0f).x;float size=Random.Range(.11f,.2f);float speed=Random.Range(8f,12f)+(stage-1)*1.25f;
+        float x=RandomWorldPosition(-7.8f,7.8f,0f,0f).x;float size=Random.Range(.11f,.2f);float speed=Random.Range(8f,12f)+(stage-1)*1.25f;
         GameObject drop=Rect("Acid droplet",new Vector3(x,Random.Range(5.4f,6.4f),-.25f),size*.65f,size,new Color(.55f,1f,.18f,.92f),3);
         drop.transform.SetParent(hazardsRoot,true);
         while(drop&&!ended&&!changing&&IsWorldActive(World.AcidRain)&&drop.transform.position.y> -5.6f)
