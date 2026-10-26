@@ -113,10 +113,11 @@ public sealed class LADIDGame : MonoBehaviour
     IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||world!=World.Volcano)continue;int projectileCount=Mathf.Min(stage,6);for(int i=0;i<projectileCount;i++)StartCoroutine(Meteor(new Vector2(Random.Range(-7.3f,7.3f),Random.Range(-4.3f,4.3f))));}}
     IEnumerator Meteor(Vector2 at)
     {
-        GameObject warn=Disc("Impact warning",at,2.4f,new Color(1,.12f,.04f,.4f),2);
+        float impactSize=Random.Range(1.2f,3.6f);
+        GameObject warn=Disc("Impact warning",at,impactSize,new Color(1,.12f,.04f,.4f),2);
         float t=0;while(t<1.05f){if(ended||changing||world!=World.Volcano){Destroy(warn);yield break;}t+=Time.deltaTime;yield return null;}
-        Destroy(warn);GameObject hit=Disc("Meteor impact",at,2.4f,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,1.2f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));
-        if(Vector2.Distance(player.position,at)<1.45f)TakeDamage(30f);yield return new WaitForSeconds(.28f);Destroy(hit);
+        Destroy(warn);GameObject hit=Disc("Meteor impact",at,impactSize,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,impactSize*.5f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));
+        if(Vector2.Distance(player.position,at)<impactSize*.5f+.25f)TakeDamage(30f);yield return new WaitForSeconds(.28f);Destroy(hit);
     }
     IEnumerator ShrinkCore(GameObject core,float duration)
     {
