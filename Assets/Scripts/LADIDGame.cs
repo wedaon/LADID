@@ -16,7 +16,9 @@ public sealed class LADIDGame : MonoBehaviour
     sealed class LightZone
     {
         public Vector2 position;
+        public Vector2 target;
         public float radius;
+        public float moveSpeed, retargetTime;
         public GameObject glow, source;
     }
     Transform player;
@@ -81,6 +83,7 @@ public sealed class LADIDGame : MonoBehaviour
         ApplyFissureContact();
         if(!changing&&IsWorldActive(World.Darkness))
         {
+            UpdateDarknessLights(dt);
             ApplyDarknessDamage(dt);
             UpdateDarknessMask();
         }
@@ -437,7 +440,7 @@ public sealed class LADIDGame : MonoBehaviour
     }
     void CreateDarknessLights()
     {
-        lightZones.Clear();int count=Mathf.Max(1,9-stage);float radius=1.65f;
+        lightZones.Clear();int count=Mathf.Max(1,9-stage);float radius=2.15f;
         for(int i=0;i<count;i++)
         {
             Vector2 position=RandomWorldPosition(-7.1f,7.1f,-4.1f,4.1f);int attempts=0;
@@ -448,7 +451,23 @@ public sealed class LADIDGame : MonoBehaviour
             }
             GameObject glow=Disc("Safe light",position,radius*2f,new Color(.8f,1f,.4f,.14f),2);
             GameObject source=Disc("Light source",position,.24f,new Color(1f,.96f,.68f,.95f),4);
-            lightZones.Add(new LightZone{position=position,radius=radius,glow=glow,source=source});
+            lightZones.Add(new LightZone{position=position,target=RandomWorldPosition(-7.1f,7.1f,-4.1f,4.1f),radius=radius,moveSpeed=Random.Range(.55f,1.05f),retargetTime=Random.Range(2f,4.5f),glow=glow,source=source});
+        }
+    }
+    void UpdateDarknessLights(float dt)
+    {
+        foreach(LightZone light in lightZones)
+        {
+            light.retargetTime-=dt;
+            if(light.retargetTime<=0f||Vector2.Distance(light.position,light.target)<.2f)
+            {
+                light.target=RandomWorldPosition(-7.1f,7.1f,-4.1f,4.1f);
+                light.moveSpeed=Random.Range(.55f,1.05f);
+                light.retargetTime=Random.Range(2f,4.5f);
+            }
+            light.position=Vector2.MoveTowards(light.position,light.target,light.moveSpeed*dt);
+            if(light.glow)light.glow.transform.position=light.position;
+            if(light.source)light.source.transform.position=light.position;
         }
     }
     void ApplyDarknessDamage(float dt)
