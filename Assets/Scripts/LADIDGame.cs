@@ -23,9 +23,12 @@ public sealed class LADIDGame : MonoBehaviour
     Transform hazardsRoot;
     Transform splitVisualRoot;
     SpriteRenderer leftFieldRenderer, rightFieldRenderer;
+    readonly SpriteRenderer[] fieldEdges=new SpriteRenderer[4];
     SpriteRenderer playerRenderer;
+    SpriteRenderer playerAura;
     Color playerColor = new Color(.88f,.96f,1f);
     Camera cam;
+    ParticleSystem atmosphere;
     Text worldText, timerText, livesText, messageText, stageText;
     Image banner, flash, shatter, darknessOverlay;
     Texture2D darknessTexture;
@@ -34,7 +37,7 @@ public sealed class LADIDGame : MonoBehaviour
     World secondaryWorld;
     readonly List<FissureData> fissures = new List<FissureData>();
     readonly List<LightZone> lightZones = new List<LightZone>();
-    float phaseTime, phaseDuration, survived, flashTime, damageTintTime, health = 100f;
+    float phaseTime, phaseDuration, survived, flashTime, damageTintTime, cameraShake, health = 100f;
     const int DarknessMaskWidth=192, DarknessMaskHeight=108;
     int stage = 1;
     bool ended, changing, falling, overlapMode;
@@ -50,13 +53,16 @@ public sealed class LADIDGame : MonoBehaviour
         rightFieldRenderer=Rect("Field Right",new Vector3(4,0),8,10,new Color(.2f,.19f,.19f),0).GetComponent<SpriteRenderer>();
         for (int i=-7;i<=7;i++) Rect("Grid",new Vector3(i,0,.1f),.018f,10,new Color(1,1,1,.04f),1);
         for (int i=-4;i<=4;i++) Rect("Grid",new Vector3(0,i,.1f),16,.018f,new Color(1,1,1,.04f),1);
-        Rect("Top edge",new Vector3(0,5.1f),16.3f,.2f,new Color(.9f,.3f,.16f),1);
-        Rect("Bottom edge",new Vector3(0,-5.1f),16.3f,.2f,new Color(.9f,.3f,.16f),1);
-        Rect("Left edge",new Vector3(-8.1f,0),.2f,10.3f,new Color(.9f,.3f,.16f),1);
-        Rect("Right edge",new Vector3(8.1f,0),.2f,10.3f,new Color(.9f,.3f,.16f),1);
+        fieldEdges[0]=Rect("Top edge",new Vector3(0,5.1f),16.3f,.2f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
+        fieldEdges[1]=Rect("Bottom edge",new Vector3(0,-5.1f),16.3f,.2f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
+        fieldEdges[2]=Rect("Left edge",new Vector3(-8.1f,0),.2f,10.3f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
+        fieldEdges[3]=Rect("Right edge",new Vector3(8.1f,0),.2f,10.3f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
         BuildSplitVisual();
+        BuildAtmosphere();
         player = Rect("Player",Vector3.zero,.52f,.52f,playerColor,5).transform;
         playerRenderer = player.GetComponent<SpriteRenderer>();
+        GameObject aura=new GameObject("Player aura");aura.transform.SetParent(player,false);aura.transform.localScale=Vector3.one*3.4f;
+        playerAura=aura.AddComponent<SpriteRenderer>();playerAura.sprite=Sprites.Circle;playerAura.color=new Color(.25f,.78f,1f,.18f);playerAura.sortingOrder=4;
         BuildHud();
         world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);
         StartCoroutine(PhaseLoop()); StartCoroutine(VolcanoLoop()); StartCoroutine(TideLoop()); StartCoroutine(EarthquakeLoop()); StartCoroutine(AcidRainLoop());
@@ -81,7 +87,10 @@ public sealed class LADIDGame : MonoBehaviour
         livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";
         if(damageTintTime>0){damageTintTime-=dt;playerRenderer.color=new Color(1f,.16f,.16f);}
         else playerRenderer.color=playerColor;
+        Color auraColor=damageTintTime>0?new Color(1f,.12f,.08f,.3f):WorldAccentColor(world);auraColor.a=damageTintTime>0?.3f:.16f;playerAura.color=auraColor;
         if(flashTime>0){flashTime-=dt;flash.color=new Color(1,.15f,.1f,Mathf.Clamp01(flashTime*.35f));}
+        if(cameraShake>0f){cameraShake=Mathf.MoveTowards(cameraShake,0f,dt*1.4f);Vector2 jitter=Random.insideUnitCircle*cameraShake;cam.transform.position=new Vector3(jitter.x,jitter.y,-10f);}
+        else cam.transform.position=new Vector3(0f,0f,-10f);
     }
 
     void BuildHud()
@@ -138,6 +147,62 @@ public sealed class LADIDGame : MonoBehaviour
         if(dimension==World.AcidRain)return new Color(.13f,.28f,.1f);
         return new Color(.025f,.03f,.065f);
     }
+    Color WorldAccentColor(World dimension)
+    {
+        if(dimension==World.Volcano)return new Color(1f,.42f,.12f,.95f);
+        if(dimension==World.Tidal)return new Color(.2f,.82f,1f,.95f);
+        if(dimension==World.Earthquake)return new Color(1f,.62f,.25f,.95f);
+        if(dimension==World.AcidRain)return new Color(.55f,1f,.2f,.95f);
+        return new Color(.56f,.62f,1f,.95f);
+    }
+    Vector2 AtmosphereDrift(World dimension)
+    {
+        if(dimension==World.Volcano)return new Vector2(.05f,.8f);
+        if(dimension==World.Tidal)return new Vector2(1.1f,.08f);
+        if(dimension==World.Earthquake)return new Vector2(.15f,.12f);
+        if(dimension==World.AcidRain)return new Vector2(.08f,-1.4f);
+        return new Vector2(.08f,.18f);
+    }
+    void BuildAtmosphere()
+    {
+        GameObject particles=new GameObject("Dimension Atmosphere");atmosphere=particles.AddComponent<ParticleSystem>();
+        var main=atmosphere.main;main.loop=true;main.playOnAwake=false;main.duration=6f;main.maxParticles=320;
+        main.simulationSpace=ParticleSystemSimulationSpace.World;main.startLifetime=new ParticleSystem.MinMaxCurve(1.8f,4.2f);
+        main.startSpeed=new ParticleSystem.MinMaxCurve(.1f,.45f);main.startSize=new ParticleSystem.MinMaxCurve(.035f,.1f);main.startColor=Color.white;
+        var emission=atmosphere.emission;emission.rateOverTime=12f;
+        var shape=atmosphere.shape;shape.shapeType=ParticleSystemShapeType.Box;shape.scale=new Vector3(16f,10f,.05f);
+        var velocity=atmosphere.velocityOverLifetime;velocity.enabled=true;velocity.x=new ParticleSystem.MinMaxCurve(-.3f,.3f);velocity.y=new ParticleSystem.MinMaxCurve(-.3f,.3f);
+        var fade=atmosphere.colorOverLifetime;fade.enabled=true;var gradient=new Gradient();
+        gradient.SetKeys(new[]{new GradientColorKey(Color.white,0f),new GradientColorKey(Color.white,1f)},new[]{new GradientAlphaKey(0f,0f),new GradientAlphaKey(.7f,.14f),new GradientAlphaKey(.55f,.78f),new GradientAlphaKey(0f,1f)});
+        fade.color=new ParticleSystem.MinMaxGradient(gradient);
+        var particleRenderer=particles.GetComponent<ParticleSystemRenderer>();particleRenderer.renderMode=ParticleSystemRenderMode.Billboard;particleRenderer.sortingOrder=2;
+    }
+    void ConfigureAtmosphere()
+    {
+        atmosphere.Clear(true);var main=atmosphere.main;Color first=WorldAccentColor(world),second=overlapMode?WorldAccentColor(secondaryWorld):first;
+        main.startColor=new ParticleSystem.MinMaxGradient(first,second);
+        Vector2 drift=overlapMode?(AtmosphereDrift(world)+AtmosphereDrift(secondaryWorld))*.5f:AtmosphereDrift(world);
+        var velocity=atmosphere.velocityOverLifetime;velocity.x=new ParticleSystem.MinMaxCurve(drift.x-.35f,drift.x+.35f);velocity.y=new ParticleSystem.MinMaxCurve(drift.y-.35f,drift.y+.35f);
+        var shape=atmosphere.shape;
+        if(overlapMode){shape.position=Vector3.zero;shape.scale=new Vector3(16f,10f,.05f);}
+        else if(world==World.Volcano){shape.position=new Vector3(0,-4.8f,0);shape.scale=new Vector3(16f,.4f,.05f);}
+        else if(world==World.Tidal){shape.position=new Vector3(-7.8f,0,0);shape.scale=new Vector3(.4f,10f,.05f);}
+        else if(world==World.AcidRain){shape.position=new Vector3(0,5.1f,0);shape.scale=new Vector3(16f,.35f,.05f);}
+        else {shape.position=Vector3.zero;shape.scale=new Vector3(16f,10f,.05f);}
+        float baseRate=world==World.AcidRain?24f:world==World.Tidal?16f:world==World.Volcano?13f:10f;
+        var emission=atmosphere.emission;emission.rateOverTime=baseRate+(overlapMode?8f:0f)+Mathf.Min(stage-1,10)*1.2f;
+        atmosphere.Play(true);
+    }
+    void EmitBurst(Vector3 position,Color color,int count,float speed)
+    {
+        if(!atmosphere)return;
+        for(int i=0;i<count;i++)
+        {
+            float angle=Random.Range(0f,Mathf.PI*2f);float velocity=Random.Range(speed*.35f,speed);
+            var burst=new ParticleSystem.EmitParams();burst.position=position;burst.velocity=new Vector3(Mathf.Cos(angle),Mathf.Sin(angle),0)*velocity;
+            burst.startColor=color;burst.startSize=Random.Range(.045f,.12f);burst.startLifetime=Random.Range(.35f,1.1f);atmosphere.Emit(burst,1);
+        }
+    }
     void BuildSplitVisual()
     {
         splitVisualRoot=new GameObject("Mirror Dimension Divider").transform;
@@ -171,7 +236,10 @@ public sealed class LADIDGame : MonoBehaviour
         world=next; phaseDuration=Random.Range(10f,20f); phaseTime=phaseDuration;
         bool darknessActive=IsWorldActive(World.Darkness);darknessOverlay.gameObject.SetActive(darknessActive);
         if(darknessActive)CreateDarknessLights();
+        ConfigureAtmosphere();
         splitVisualRoot.gameObject.SetActive(overlapMode);
+        Color edgeColor=WorldAccentColor(world);foreach(SpriteRenderer edge in fieldEdges)edge.color=edgeColor;
+        Color auraTint=WorldAccentColor(world);auraTint.a=.16f;playerAura.color=auraTint;
         if(overlapMode)
         {
             leftFieldRenderer.color=WorldFieldColor(world);rightFieldRenderer.color=WorldFieldColor(secondaryWorld);cam.backgroundColor=new Color(.035f,.035f,.05f);
@@ -180,7 +248,7 @@ public sealed class LADIDGame : MonoBehaviour
         }
         else
         {
-            leftFieldRenderer.color=rightFieldRenderer.color=new Color(.2f,.19f,.19f);
+            leftFieldRenderer.color=rightFieldRenderer.color=Color.Lerp(new Color(.2f,.19f,.19f),WorldFieldColor(next),.72f);
             cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):next==World.Tidal?new Color(.04f,.19f,.27f):next==World.Earthquake?new Color(.16f,.12f,.09f):next==World.AcidRain?new Color(.08f,.16f,.09f):new Color(.01f,.015f,.035f);
             worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":next==World.Tidal?"02  /  TIDAL WORLD":next==World.Earthquake?"03  /  FRACTURED EARTH":next==World.AcidRain?"04  /  ACID RAIN":"05  /  DARKNESS";
             messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":next==World.Tidal?"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN":next==World.Earthquake?"EARTHQUAKE WORLD  •  LEAVE THE CRACKING GROUND BEFORE IT OPENS":next==World.AcidRain?"ACID RAIN WORLD  •  DODGE THE FALLING DROPS":"DARKNESS WORLD  •  STAY INSIDE THE LIGHT";
@@ -193,9 +261,9 @@ public sealed class LADIDGame : MonoBehaviour
     {
         float impactSize=Random.Range(1.2f,3.6f);
         GameObject warn=Disc("Impact warning",at,impactSize,new Color(1,.12f,.04f,.4f),2);
-        float t=0;while(t<1.05f){if(!warn||ended||changing||!IsWorldActive(World.Volcano)){if(warn)Destroy(warn);yield break;}t+=Time.deltaTime;yield return null;}
+        SpriteRenderer warningRenderer=warn.GetComponent<SpriteRenderer>();float t=0;while(t<1.05f){if(!warn||ended||changing||!IsWorldActive(World.Volcano)){if(warn)Destroy(warn);yield break;}t+=Time.deltaTime;Color warningColor=warningRenderer.color;warningColor.a=.24f+Mathf.PingPong(Time.time*1.8f,.28f);warningRenderer.color=warningColor;yield return null;}
         if(!warn||ended||changing||!IsWorldActive(World.Volcano))yield break;
-        Destroy(warn);GameObject hit=Disc("Meteor impact",at,impactSize,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,impactSize*.5f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));
+        Destroy(warn);GameObject hit=Disc("Meteor impact",at,impactSize,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,impactSize*.5f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));EmitBurst(new Vector3(at.x,at.y,-.1f),new Color(1,.38f,.08f),18,3.2f);cameraShake=Mathf.Max(cameraShake,.13f);
         if(Vector2.Distance(player.position,at)<impactSize*.5f+.25f)TakeDamage(30f);yield return new WaitForSeconds(.28f);Destroy(hit);
     }
     IEnumerator ShrinkCore(GameObject core,float duration)
@@ -222,7 +290,7 @@ public sealed class LADIDGame : MonoBehaviour
         while(drop&&!ended&&!changing&&IsWorldActive(World.AcidRain)&&drop.transform.position.y> -5.6f)
         {
             Vector3 position=drop.transform.position;position.y-=speed*Time.deltaTime;drop.transform.position=position;
-            if(Mathf.Abs(player.position.x-position.x)<.34f&&Mathf.Abs(player.position.y-position.y)<.38f){TakeDamage(5f);Destroy(drop);yield break;}
+            if(Mathf.Abs(player.position.x-position.x)<.34f&&Mathf.Abs(player.position.y-position.y)<.38f){TakeDamage(5f);EmitBurst(position,new Color(.65f,1f,.12f),5,1.2f);Destroy(drop);yield break;}
             yield return null;
         }
         if(drop)Destroy(drop);
@@ -240,6 +308,7 @@ public sealed class LADIDGame : MonoBehaviour
         yield return new WaitForSeconds(1.1f);
         if(!crack||ended||changing||!IsWorldActive(World.Earthquake)){if(crack)Destroy(crack);yield break;}
         crack.name="Ground fissure";foreach(SpriteRenderer segmentRenderer in crack.GetComponentsInChildren<SpriteRenderer>())segmentRenderer.color=new Color(.035f,.025f,.02f,1f);
+        for(int i=1;i<path.Count;i+=3)EmitBurst(new Vector3(path[i].x,path[i].y,-.15f),new Color(.72f,.38f,.15f),3,.8f);
         FissureData data=new FissureData{path=path,side=side};fissures.Add(data);
         yield return new WaitForSeconds(2.4f);
         fissures.Remove(data);Destroy(crack);
@@ -276,7 +345,7 @@ public sealed class LADIDGame : MonoBehaviour
             bool insideSide=fissure.side==0||(fissure.side<0?player.position.x<0f:player.position.x>=0f);bool overGap=false;
             if(insideSide)for(int i=0;i<fissure.path.Count-1;i++)if(Vector2.Distance(player.position,ClosestPointOnSegment(player.position,fissure.path[i],fissure.path[i+1]))<.47f){overGap=true;break;}
             if(!overGap)continue;
-            fissure.triggered=true;falling=true;TakeDamage(20f);StartCoroutine(FallAndRecover(fissure));break;
+            fissure.triggered=true;falling=true;TakeDamage(20f);EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.78f,.46f,.2f),10,1.6f);cameraShake=Mathf.Max(cameraShake,.07f);StartCoroutine(FallAndRecover(fissure));break;
         }
     }
     static Vector2 ClosestPointOnSegment(Vector2 point,Vector2 start,Vector2 end)
@@ -308,13 +377,13 @@ public sealed class LADIDGame : MonoBehaviour
         float x=left?minX-2f:maxX+2f,end=left?maxX+2f:minX-2f;
         var wave=Rect("Tsunami",new Vector3(x,y,-.3f),2,band*2,new Color(.12f,.75f,.95f,.72f),3);
         wave.transform.SetParent(hazardsRoot,true);
-        banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);yield return new WaitForSeconds(1.05f);
+        banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);EmitBurst(new Vector3(x,y,-.15f),new Color(.25f,.85f,1f),14,2.4f);yield return new WaitForSeconds(1.05f);
         if(!wave||ended||changing||!IsWorldActive(World.Tidal)){if(wave)Destroy(wave);yield break;}banner.gameObject.SetActive(false);
         bool hit=false;while(wave&&!ended&&!changing&&IsWorldActive(World.Tidal)&&(left?wave.transform.position.x<end:wave.transform.position.x>end))
         {
             float dt=Time.deltaTime;var p=wave.transform.position;p.x+=(left?16:-16)*dt;wave.transform.position=p;
             bool touching=Mathf.Abs(player.position.y-y)<band+.34f&&Mathf.Abs(player.position.x-p.x)<1.25f;
-            if(touching&&!hit){hit=true;TakeDamage(40f);player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
+            if(touching&&!hit){hit=true;TakeDamage(40f);EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.25f,.85f,1f),12,2f);cameraShake=Mathf.Max(cameraShake,.1f);player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
             yield return null;
         }if(wave)Destroy(wave);
     }
@@ -373,7 +442,7 @@ public sealed class LADIDGame : MonoBehaviour
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
     void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
-    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
+    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Sprite CreateCrackSprite()
