@@ -100,6 +100,7 @@ public sealed class LADIDGame : MonoBehaviour
         flash.rectTransform.anchorMax=Vector2.one; flash.rectTransform.offsetMin=Vector2.zero; flash.rectTransform.offsetMax=Vector2.zero;
         shatter=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
         shatter.rectTransform.anchorMax=Vector2.one; shatter.rectTransform.offsetMin=Vector2.zero; shatter.rectTransform.offsetMax=Vector2.zero;
+        shatter.rectTransform.pivot=new Vector2(.5f,.5f);shatter.rectTransform.anchoredPosition=Vector2.zero;
         shatter.sprite=CreateCrackSprite(); shatter.type=Image.Type.Simple; shatter.raycastTarget=false; shatter.color=new Color(1,1,1,0);
         darknessTexture=new Texture2D(DarknessMaskWidth,DarknessMaskHeight,TextureFormat.RGBA32,false);darknessTexture.filterMode=FilterMode.Bilinear;darknessTexture.wrapMode=TextureWrapMode.Clamp;
         darknessPixels=new Color32[DarknessMaskWidth*DarknessMaskHeight];for(int i=0;i<darknessPixels.Length;i++)darknessPixels[i]=new Color32(0,0,0,248);
@@ -154,14 +155,15 @@ public sealed class LADIDGame : MonoBehaviour
     }
     IEnumerator PlayShatter(float duration)
     {
-        shatter.gameObject.SetActive(true); float elapsed=0f;
+        shatter.rectTransform.localScale=Vector3.one*.22f;shatter.gameObject.SetActive(true);float elapsed=0f;
         while(elapsed<duration)
         {
             elapsed+=Time.deltaTime; float progress=Mathf.Clamp01(elapsed/duration);
             float alpha=progress<.12f?Mathf.Lerp(0f,.9f,progress/.12f):Mathf.Lerp(.9f,0f,(progress-.12f)/.88f);
+            shatter.rectTransform.localScale=Vector3.one*Mathf.Lerp(.22f,1.4f,progress);
             shatter.color=new Color(1,1,1,alpha); yield return null;
         }
-        shatter.color=new Color(1,1,1,0); shatter.gameObject.SetActive(false);
+        shatter.color=new Color(1,1,1,0);shatter.rectTransform.localScale=Vector3.one;shatter.gameObject.SetActive(false);
     }
     void SetWorld(World next,bool first)
     {
@@ -376,29 +378,37 @@ public sealed class LADIDGame : MonoBehaviour
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Sprite CreateCrackSprite()
     {
-        const int width=512,height=288; var pixels=new Color[width*height]; var random=new System.Random(27);
+        const int width=512,height=288;var pixels=new Color[width*height];var random=new System.Random(59);
         Vector2 center=new Vector2(width*.5f,height*.5f);
-        for(int i=0;i<10;i++)DrawCrack(pixels,width,height,center,Mathf.PI*2*i/10f+(float)(random.NextDouble()-.5)*.16f,random.Next(190,280),random,0);
+        for(int i=0;i<18;i++)
+        {
+            float angle=Mathf.PI*2*i/18f+(float)(random.NextDouble()-.5)*.12f;
+            float widthAngle=(float)(.16+random.NextDouble()*.2),tipAngle=angle+widthAngle*.5f+(float)(random.NextDouble()-.5)*.16f;
+            Vector2 innerA=center+new Vector2(Mathf.Cos(angle),Mathf.Sin(angle))*random.Next(38,58);
+            Vector2 innerB=center+new Vector2(Mathf.Cos(angle+widthAngle),Mathf.Sin(angle+widthAngle))*random.Next(38,58);
+            Vector2 tip=center+new Vector2(Mathf.Cos(tipAngle),Mathf.Sin(tipAngle))*random.Next(115,255);
+            Color glass=new Color(.62f,.88f,1f,(float)(.18+random.NextDouble()*.24));
+            FillTriangle(pixels,width,height,innerA,innerB,tip,glass);
+            DrawCrackLine(pixels,width,height,innerA,tip,1);DrawCrackLine(pixels,width,height,innerB,tip,1);
+        }
         var texture=new Texture2D(width,height,TextureFormat.RGBA32,false); texture.filterMode=FilterMode.Bilinear; texture.wrapMode=TextureWrapMode.Clamp;
         texture.SetPixels(pixels); texture.Apply(); return Sprite.Create(texture,new Rect(0,0,width,height),new Vector2(.5f,.5f),100f);
     }
-    static void DrawCrack(Color[] pixels,int width,int height,Vector2 start,float angle,float length,System.Random random,int depth)
+    static void FillTriangle(Color[] pixels,int width,int height,Vector2 a,Vector2 b,Vector2 c,Color color)
     {
-        Vector2 point=start; int segments=Mathf.Max(4,Mathf.RoundToInt(length/24f));
-        for(int i=0;i<segments;i++)
+        int minX=Mathf.Max(0,Mathf.FloorToInt(Mathf.Min(a.x,Mathf.Min(b.x,c.x))));
+        int maxX=Mathf.Min(width-1,Mathf.CeilToInt(Mathf.Max(a.x,Mathf.Max(b.x,c.x))));
+        int minY=Mathf.Max(0,Mathf.FloorToInt(Mathf.Min(a.y,Mathf.Min(b.y,c.y))));
+        int maxY=Mathf.Min(height-1,Mathf.CeilToInt(Mathf.Max(a.y,Mathf.Max(b.y,c.y))));
+        float area=Cross(b-a,c-a);
+        for(int y=minY;y<=maxY;y++)for(int x=minX;x<=maxX;x++)
         {
-            angle+=(float)(random.NextDouble()-.5)*.32f;
-            float step=length/segments; Vector2 next=point+new Vector2(Mathf.Cos(angle),Mathf.Sin(angle))*step;
-            DrawCrackLine(pixels,width,height,point,next,depth==0?1:0);
-            if(depth<2&&i==segments/2&&length>70f)
-            {
-                float branchAngle=angle+(random.Next(0,2)==0?-1f:1f)*(float)(.55+random.NextDouble()*.55);
-                DrawCrack(pixels,width,height,point,branchAngle,length*(float)(.35+random.NextDouble()*.2),random,depth+1);
-            }
-            point=next;
-            if(point.x<0||point.x>=width||point.y<0||point.y>=height)break;
+            Vector2 p=new Vector2(x+.5f,y+.5f);
+            float e1=Cross(b-a,p-a),e2=Cross(c-b,p-b),e3=Cross(a-c,p-c);
+            if((e1>=0f&&e2>=0f&&e3>=0f)||(e1<=0f&&e2<=0f&&e3<=0f))pixels[y*width+x]=color;
         }
     }
+    static float Cross(Vector2 a,Vector2 b){return a.x*b.y-a.y*b.x;}
     static void DrawCrackLine(Color[] pixels,int width,int height,Vector2 from,Vector2 to,int radius)
     {
         int x0=Mathf.RoundToInt(from.x),y0=Mathf.RoundToInt(from.y),x1=Mathf.RoundToInt(to.x),y1=Mathf.RoundToInt(to.y);
