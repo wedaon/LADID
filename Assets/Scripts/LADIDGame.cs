@@ -30,7 +30,7 @@ public sealed class LADIDGame : MonoBehaviour
     Camera cam;
     ParticleSystem atmosphere;
     Text worldText, timerText, livesText, messageText, stageText;
-    Image banner, flash, shatter, darknessOverlay;
+    Image banner, flash, shatter, shatterGlow, shatterFlash, darknessOverlay;
     Texture2D darknessTexture;
     Color32[] darknessPixels;
     World world;
@@ -107,22 +107,73 @@ public sealed class LADIDGame : MonoBehaviour
         Label(banner.transform,"",26,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);
         flash=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,new Color(1,.1f,.1f,0));
         flash.rectTransform.anchorMax=Vector2.one; flash.rectTransform.offsetMin=Vector2.zero; flash.rectTransform.offsetMax=Vector2.zero;
+        shatterGlow=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
+        shatterGlow.rectTransform.anchorMax=Vector2.one; shatterGlow.rectTransform.offsetMin=Vector2.zero; shatterGlow.rectTransform.offsetMax=Vector2.zero;
+        shatterGlow.rectTransform.pivot=new Vector2(.5f,.5f);shatterGlow.rectTransform.anchoredPosition=Vector2.zero;
+        shatterGlow.sprite=CreateTransitionGlowSprite();shatterGlow.type=Image.Type.Simple;shatterGlow.raycastTarget=false;shatterGlow.color=new Color(1,1,1,0);
         shatter=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
         shatter.rectTransform.anchorMax=Vector2.one; shatter.rectTransform.offsetMin=Vector2.zero; shatter.rectTransform.offsetMax=Vector2.zero;
         shatter.rectTransform.pivot=new Vector2(.5f,.5f);shatter.rectTransform.anchoredPosition=Vector2.zero;
         shatter.sprite=CreateCrackSprite(); shatter.type=Image.Type.Simple; shatter.raycastTarget=false; shatter.color=new Color(1,1,1,0);
+        shatterFlash=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,new Color(.72f,.9f,1f,0));
+        shatterFlash.rectTransform.anchorMax=Vector2.one;shatterFlash.rectTransform.offsetMin=Vector2.zero;shatterFlash.rectTransform.offsetMax=Vector2.zero;shatterFlash.raycastTarget=false;
         darknessTexture=new Texture2D(DarknessMaskWidth,DarknessMaskHeight,TextureFormat.RGBA32,false);darknessTexture.filterMode=FilterMode.Bilinear;darknessTexture.wrapMode=TextureWrapMode.Clamp;
         darknessPixels=new Color32[DarknessMaskWidth*DarknessMaskHeight];for(int i=0;i<darknessPixels.Length;i++)darknessPixels[i]=new Color32(0,0,0,248);
         darknessTexture.SetPixels32(darknessPixels);darknessTexture.Apply();
         darknessOverlay=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
         darknessOverlay.rectTransform.anchorMax=Vector2.one;darknessOverlay.rectTransform.offsetMin=Vector2.zero;darknessOverlay.rectTransform.offsetMax=Vector2.zero;
         darknessOverlay.sprite=Sprite.Create(darknessTexture,new Rect(0,0,DarknessMaskWidth,DarknessMaskHeight),new Vector2(.5f,.5f),100f);darknessOverlay.type=Image.Type.Simple;darknessOverlay.raycastTarget=false;
-        banner.gameObject.SetActive(false);flash.transform.SetAsLastSibling();shatter.transform.SetAsLastSibling();shatter.gameObject.SetActive(false);darknessOverlay.transform.SetAsFirstSibling();darknessOverlay.gameObject.SetActive(false);
+        banner.gameObject.SetActive(false);darknessOverlay.transform.SetAsFirstSibling();darknessOverlay.gameObject.SetActive(false);
+        flash.transform.SetAsLastSibling();shatterGlow.transform.SetAsLastSibling();shatter.transform.SetAsLastSibling();shatterFlash.transform.SetAsLastSibling();
+        shatterGlow.gameObject.SetActive(false);shatter.gameObject.SetActive(false);shatterFlash.gameObject.SetActive(false);
     }
 
     IEnumerator PhaseLoop()
     {
-        while(!ended){yield return new WaitForSeconds(phaseDuration); if(ended)yield break; changing=true; ClearHazards(); banner.gameObject.SetActive(false); StartCoroutine(PlayShatter(1.5f)); yield return new WaitForSeconds(1.5f); stage++; World next=RandomWorld();float overlapChance=stage<3?0f:Mathf.Min((stage-2)*.1f,.5f);overlapMode=Random.value<overlapChance;secondaryWorld=overlapMode?RandomWorldExcept(next):next;SetWorld(next,false);changing=false;}
+        while(!ended)
+        {
+            yield return new WaitForSeconds(phaseDuration);
+            if(ended)yield break;
+            yield return StartCoroutine(TransitionDimension());
+        }
+    }
+    IEnumerator TransitionDimension()
+    {
+        changing=true;ClearHazards();banner.gameObject.SetActive(false);
+        const float duration=1.8f,swapAt=.52f;
+        shatterGlow.rectTransform.localScale=Vector3.one*.12f;shatterGlow.color=new Color(.52f,.82f,1f,0);shatterGlow.gameObject.SetActive(true);
+        shatter.rectTransform.localScale=Vector3.one*.08f;shatter.rectTransform.localRotation=Quaternion.identity;shatter.color=new Color(.8f,.94f,1f,0);shatter.gameObject.SetActive(true);
+        shatterFlash.color=new Color(.78f,.91f,1f,0);shatterFlash.gameObject.SetActive(true);
+        float elapsed=0f;bool swapped=false;
+        while(elapsed<duration&&!ended)
+        {
+            elapsed+=Time.deltaTime;float progress=Mathf.Clamp01(elapsed/duration);
+            float opening=Mathf.SmoothStep(0f,1f,Mathf.Clamp01(progress/.44f));
+            float dispersal=Mathf.SmoothStep(0f,1f,Mathf.Clamp01((progress-swapAt)/(.98f-swapAt)));
+            float shardAlpha=progress<swapAt?Mathf.Lerp(0f,.96f,opening):Mathf.Lerp(.96f,0f,dispersal);
+            float shardScale=progress<swapAt?Mathf.Lerp(.08f,1.12f,opening):Mathf.Lerp(1.12f,1.72f,dispersal);
+            shatter.rectTransform.localScale=Vector3.one*shardScale;
+            shatter.rectTransform.localRotation=Quaternion.Euler(0f,0f,Mathf.Lerp(0f,11f,progress));
+            shatter.color=new Color(.82f,.95f,1f,shardAlpha);
+            float glowIn=Mathf.SmoothStep(0f,1f,Mathf.Clamp01(progress/.42f));
+            float glowOut=1f-Mathf.SmoothStep(0f,1f,Mathf.Clamp01((progress-.47f)/.42f));
+            shatterGlow.rectTransform.localScale=Vector3.one*Mathf.Lerp(.12f,1.85f,glowIn);
+            shatterGlow.color=new Color(.55f,.84f,1f,.72f*glowIn*glowOut);
+            float flashPulse=Mathf.Clamp01(1f-Mathf.Abs(progress-swapAt)/.065f);
+            shatterFlash.color=new Color(.82f,.94f,1f,.58f*flashPulse);
+            if(!swapped&&progress>=swapAt)
+            {
+                stage++;World next=RandomWorld();float overlapChance=stage<3?0f:Mathf.Min((stage-2)*.1f,.5f);
+                overlapMode=Random.value<overlapChance;secondaryWorld=overlapMode?RandomWorldExcept(next):next;
+                SetWorld(next,false);EmitBurst(new Vector3(0f,0f,-.1f),new Color(.72f,.9f,1f,.95f),38,5.2f);swapped=true;
+            }
+            yield return null;
+        }
+        shatter.color=new Color(1f,1f,1f,0f);shatter.rectTransform.localScale=Vector3.one;shatter.rectTransform.localRotation=Quaternion.identity;
+        shatterGlow.color=new Color(1f,1f,1f,0f);shatterGlow.rectTransform.localScale=Vector3.one;
+        shatterFlash.color=new Color(.78f,.91f,1f,0f);
+        shatter.gameObject.SetActive(false);shatterGlow.gameObject.SetActive(false);shatterFlash.gameObject.SetActive(false);
+        changing=false;
     }
     World RandomWorld(){World next=world;while(next==world)next=(World)Random.Range(0,5);return next;}
     World RandomWorldExcept(World excluded){World next=excluded;while(next==excluded)next=(World)Random.Range(0,5);return next;}
@@ -171,7 +222,7 @@ public sealed class LADIDGame : MonoBehaviour
         main.startSpeed=new ParticleSystem.MinMaxCurve(.1f,.45f);main.startSize=new ParticleSystem.MinMaxCurve(.035f,.1f);main.startColor=Color.white;
         var emission=atmosphere.emission;emission.rateOverTime=12f;
         var shape=atmosphere.shape;shape.shapeType=ParticleSystemShapeType.Box;shape.scale=new Vector3(16f,10f,.05f);
-        var velocity=atmosphere.velocityOverLifetime;velocity.enabled=true;velocity.x=new ParticleSystem.MinMaxCurve(-.3f,.3f);velocity.y=new ParticleSystem.MinMaxCurve(-.3f,.3f);
+        var velocity=atmosphere.velocityOverLifetime;velocity.enabled=true;velocity.separateAxes=true;velocity.x=new ParticleSystem.MinMaxCurve(0f);velocity.y=new ParticleSystem.MinMaxCurve(0f);velocity.z=new ParticleSystem.MinMaxCurve(0f);
         var fade=atmosphere.colorOverLifetime;fade.enabled=true;var gradient=new Gradient();
         gradient.SetKeys(new[]{new GradientColorKey(Color.white,0f),new GradientColorKey(Color.white,1f)},new[]{new GradientAlphaKey(0f,0f),new GradientAlphaKey(.7f,.14f),new GradientAlphaKey(.55f,.78f),new GradientAlphaKey(0f,1f)});
         fade.color=new ParticleSystem.MinMaxGradient(gradient);
@@ -182,7 +233,7 @@ public sealed class LADIDGame : MonoBehaviour
         atmosphere.Clear(true);var main=atmosphere.main;Color first=WorldAccentColor(world),second=overlapMode?WorldAccentColor(secondaryWorld):first;
         main.startColor=new ParticleSystem.MinMaxGradient(first,second);
         Vector2 drift=overlapMode?(AtmosphereDrift(world)+AtmosphereDrift(secondaryWorld))*.5f:AtmosphereDrift(world);
-        var velocity=atmosphere.velocityOverLifetime;velocity.x=new ParticleSystem.MinMaxCurve(drift.x-.35f,drift.x+.35f);velocity.y=new ParticleSystem.MinMaxCurve(drift.y-.35f,drift.y+.35f);
+        var velocity=atmosphere.velocityOverLifetime;velocity.separateAxes=true;velocity.x=new ParticleSystem.MinMaxCurve(drift.x);velocity.y=new ParticleSystem.MinMaxCurve(drift.y);velocity.z=new ParticleSystem.MinMaxCurve(0f);
         var shape=atmosphere.shape;
         if(overlapMode){shape.position=Vector3.zero;shape.scale=new Vector3(16f,10f,.05f);}
         else if(world==World.Volcano){shape.position=new Vector3(0,-4.8f,0);shape.scale=new Vector3(16f,.4f,.05f);}
@@ -217,18 +268,6 @@ public sealed class LADIDGame : MonoBehaviour
             twig.transform.SetParent(splitVisualRoot,true);twig.transform.rotation=Quaternion.Euler(0,0,-direction*48f);
         }
         splitVisualRoot.gameObject.SetActive(false);
-    }
-    IEnumerator PlayShatter(float duration)
-    {
-        shatter.rectTransform.localScale=Vector3.one*.22f;shatter.gameObject.SetActive(true);float elapsed=0f;
-        while(elapsed<duration)
-        {
-            elapsed+=Time.deltaTime; float progress=Mathf.Clamp01(elapsed/duration);
-            float alpha=progress<.12f?Mathf.Lerp(0f,.9f,progress/.12f):Mathf.Lerp(.9f,0f,(progress-.12f)/.88f);
-            shatter.rectTransform.localScale=Vector3.one*Mathf.Lerp(.22f,1.4f,progress);
-            shatter.color=new Color(1,1,1,alpha); yield return null;
-        }
-        shatter.color=new Color(1,1,1,0);shatter.rectTransform.localScale=Vector3.one;shatter.gameObject.SetActive(false);
     }
     void SetWorld(World next,bool first)
     {
@@ -445,20 +484,43 @@ public sealed class LADIDGame : MonoBehaviour
     void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
+    static Sprite CreateTransitionGlowSprite()
+    {
+        const int width=512,height=288;var pixels=new Color[width*height];
+        Vector2 center=new Vector2((width-1)*.5f,(height-1)*.5f);float maxRadius=Mathf.Sqrt(center.x*center.x+center.y*center.y);
+        for(int y=0;y<height;y++)for(int x=0;x<width;x++)
+        {
+            float distance=Vector2.Distance(new Vector2(x,y),center)/maxRadius;
+            float core=Mathf.Pow(Mathf.Clamp01(1f-distance/.62f),2.2f);
+            float ring=Mathf.Exp(-Mathf.Pow((distance-.48f)/.035f,2f))*.22f;
+            float alpha=Mathf.Clamp01(core*.78f+ring);
+            Color tint=Color.Lerp(new Color(.14f,.48f,.92f),new Color(.86f,.97f,1f),Mathf.Clamp01(1f-distance*1.7f));
+            pixels[y*width+x]=new Color(tint.r,tint.g,tint.b,alpha);
+        }
+        var texture=new Texture2D(width,height,TextureFormat.RGBA32,false);texture.filterMode=FilterMode.Bilinear;texture.wrapMode=TextureWrapMode.Clamp;
+        texture.SetPixels(pixels);texture.Apply();return Sprite.Create(texture,new Rect(0,0,width,height),new Vector2(.5f,.5f),100f);
+    }
     static Sprite CreateCrackSprite()
     {
         const int width=512,height=288;var pixels=new Color[width*height];var random=new System.Random(59);
         Vector2 center=new Vector2(width*.5f,height*.5f);
-        for(int i=0;i<18;i++)
+        for(int i=0;i<26;i++)
         {
-            float angle=Mathf.PI*2*i/18f+(float)(random.NextDouble()-.5)*.12f;
-            float widthAngle=(float)(.16+random.NextDouble()*.2),tipAngle=angle+widthAngle*.5f+(float)(random.NextDouble()-.5)*.16f;
-            Vector2 innerA=center+new Vector2(Mathf.Cos(angle),Mathf.Sin(angle))*random.Next(38,58);
-            Vector2 innerB=center+new Vector2(Mathf.Cos(angle+widthAngle),Mathf.Sin(angle+widthAngle))*random.Next(38,58);
-            Vector2 tip=center+new Vector2(Mathf.Cos(tipAngle),Mathf.Sin(tipAngle))*random.Next(115,255);
-            Color glass=new Color(.62f,.88f,1f,(float)(.18+random.NextDouble()*.24));
+            float angle=Mathf.PI*2*i/26f+(float)(random.NextDouble()-.5)*.16f;
+            float widthAngle=(float)(.1+random.NextDouble()*.2),tipAngle=angle+widthAngle*.5f+(float)(random.NextDouble()-.5)*.22f;
+            Vector2 innerA=center+new Vector2(Mathf.Cos(angle),Mathf.Sin(angle))*random.Next(55,82);
+            Vector2 innerB=center+new Vector2(Mathf.Cos(angle+widthAngle),Mathf.Sin(angle+widthAngle))*random.Next(55,82);
+            Vector2 tip=center+new Vector2(Mathf.Cos(tipAngle),Mathf.Sin(tipAngle))*random.Next(145,285);
+            float hue=(float)random.NextDouble();
+            Color glass=hue<.72f?new Color(.32f,.72f,1f,(float)(.16+random.NextDouble()*.23)):new Color(.78f,.94f,1f,(float)(.18+random.NextDouble()*.25));
             FillTriangle(pixels,width,height,innerA,innerB,tip,glass);
             DrawCrackLine(pixels,width,height,innerA,tip,1);DrawCrackLine(pixels,width,height,innerB,tip,1);
+            if(i%3==0)
+            {
+                Vector2 split=Vector2.Lerp(innerA,tip,(float)(.34+random.NextDouble()*.28));
+                Vector2 branch=split+new Vector2(Mathf.Cos(tipAngle+widthAngle),Mathf.Sin(tipAngle+widthAngle))*random.Next(24,58);
+                DrawCrackLine(pixels,width,height,split,branch,0);
+            }
         }
         var texture=new Texture2D(width,height,TextureFormat.RGBA32,false); texture.filterMode=FilterMode.Bilinear; texture.wrapMode=TextureWrapMode.Clamp;
         texture.SetPixels(pixels); texture.Apply(); return Sprite.Create(texture,new Rect(0,0,width,height),new Vector2(.5f,.5f),100f);
