@@ -9,9 +9,9 @@ public sealed class LADIDGame : MonoBehaviour
     enum World { Volcano, Tidal, Earthquake, AcidRain }
     sealed class FissureData
     {
-        public bool horizontal, triggered;
-        public float coordinate;
+        public bool triggered;
         public int side;
+        public List<Vector2> path;
     }
     Transform player;
     Transform hazardsRoot;
@@ -91,7 +91,7 @@ public sealed class LADIDGame : MonoBehaviour
 
     IEnumerator PhaseLoop()
     {
-        while(!ended){yield return new WaitForSeconds(phaseDuration); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE  •  STAGE "+(stage+1).ToString("00"); yield return new WaitForSeconds(1.5f); stage++; World next=RandomWorld(); overlapMode=stage>=3; secondaryWorld=overlapMode?RandomWorldExcept(next):next; SetWorld(next,false); changing=false;}
+        while(!ended){yield return new WaitForSeconds(phaseDuration); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE  •  STAGE "+(stage+1).ToString("00"); yield return new WaitForSeconds(1.5f); stage++; World next=RandomWorld();float overlapChance=stage<3?0f:Mathf.Min((stage-2)*.1f,.5f);overlapMode=Random.value<overlapChance;secondaryWorld=overlapMode?RandomWorldExcept(next):next;SetWorld(next,false);changing=false;}
     }
     World RandomWorld(){World next=world;while(next==world)next=(World)Random.Range(0,4);return next;}
     World RandomWorldExcept(World excluded){World next=excluded;while(next==excluded)next=(World)Random.Range(0,4);return next;}
@@ -207,18 +207,43 @@ public sealed class LADIDGame : MonoBehaviour
     }
     IEnumerator Fissure(int side)
     {
-        bool horizontal=Random.value>.5f;
-        float centerX=side==0?0f:side*4f;float width=side==0?16f:8f;
-        float coordinate=horizontal?Random.Range(-3.8f,3.8f):side<0?Random.Range(-7.3f,-.6f):side>0?Random.Range(.6f,7.3f):Random.Range(-6.5f,6.5f);
-        Vector3 position=horizontal?new Vector3(centerX,coordinate,-.2f):new Vector3(coordinate,0,-.2f);
-        GameObject crack=Rect("Fissure warning",position,horizontal?width:.24f,horizontal?.24f:10f,new Color(1,.35f,.08f,.78f),2);
-        crack.transform.SetParent(hazardsRoot,true);
+        List<Vector2> path=BuildFissurePath(side,Random.value>.5f);
+        GameObject crack=new GameObject("Fissure warning");crack.transform.SetParent(hazardsRoot,false);
+        for(int i=0;i<path.Count-1;i++)
+        {
+            Vector2 from=path[i],to=path[i+1],delta=to-from;Vector2 midpoint=(from+to)*.5f;
+            GameObject segment=Rect("Fissure segment",new Vector3(midpoint.x,midpoint.y,-.2f),delta.magnitude,.24f,new Color(1,.35f,.08f,.82f),2);
+            segment.transform.rotation=Quaternion.Euler(0,0,Mathf.Atan2(delta.y,delta.x)*Mathf.Rad2Deg);segment.transform.SetParent(crack.transform,true);
+        }
         yield return new WaitForSeconds(1.1f);
         if(!crack||ended||changing||!IsWorldActive(World.Earthquake)){if(crack)Destroy(crack);yield break;}
-        crack.name="Ground fissure";crack.GetComponent<SpriteRenderer>().color=new Color(.035f,.025f,.02f,1f);
-        FissureData data=new FissureData{horizontal=horizontal,coordinate=coordinate,side=side};fissures.Add(data);
+        crack.name="Ground fissure";foreach(SpriteRenderer segmentRenderer in crack.GetComponentsInChildren<SpriteRenderer>())segmentRenderer.color=new Color(.035f,.025f,.02f,1f);
+        FissureData data=new FissureData{path=path,side=side};fissures.Add(data);
         yield return new WaitForSeconds(2.4f);
         fissures.Remove(data);Destroy(crack);
+    }
+    List<Vector2> BuildFissurePath(int side,bool horizontal)
+    {
+        var path=new List<Vector2>();
+        if(horizontal)
+        {
+            float minX=side<0?-7.8f:-7.8f,maxX=side>0?7.8f:side<0?-.2f:7.8f;
+            if(side>0)minX=.2f;
+            float centerY=Random.Range(-3.2f,3.2f);int segments=side==0?14:7;
+            for(int i=0;i<=segments;i++)path.Add(new Vector2(Mathf.Lerp(minX,maxX,(float)i/segments),Mathf.Clamp(centerY+Random.Range(-.8f,.8f),-4.6f,4.6f)));
+        }
+        else
+        {
+            float centerX=side<0?Random.Range(-6.7f,-2.5f):side>0?Random.Range(2.5f,6.7f):Random.Range(-6.5f,6.5f);
+            int segments=10;
+            for(int i=0;i<=segments;i++)
+            {
+                float y=Mathf.Lerp(-4.7f,4.7f,(float)i/segments);float x=centerX+Random.Range(-.75f,.75f);
+                x=side<0?Mathf.Clamp(x,-7.8f,-.2f):side>0?Mathf.Clamp(x,.2f,7.8f):Mathf.Clamp(x,-7.8f,7.8f);
+                path.Add(new Vector2(x,y));
+            }
+        }
+        return path;
     }
     void ApplyFissureContact()
     {
@@ -226,18 +251,27 @@ public sealed class LADIDGame : MonoBehaviour
         foreach(FissureData fissure in fissures)
         {
             if(fissure.triggered)continue;
-            bool insideSide=fissure.side==0||(fissure.side<0?player.position.x<0f:player.position.x>=0f);
-            bool overGap=insideSide&&(fissure.horizontal?Mathf.Abs(player.position.y-fissure.coordinate)<.47f:Mathf.Abs(player.position.x-fissure.coordinate)<.47f);
+            bool insideSide=fissure.side==0||(fissure.side<0?player.position.x<0f:player.position.x>=0f);bool overGap=false;
+            if(insideSide)for(int i=0;i<fissure.path.Count-1;i++)if(Vector2.Distance(player.position,ClosestPointOnSegment(player.position,fissure.path[i],fissure.path[i+1]))<.47f){overGap=true;break;}
             if(!overGap)continue;
             fissure.triggered=true;falling=true;TakeDamage(20f);StartCoroutine(FallAndRecover(fissure));break;
         }
     }
+    static Vector2 ClosestPointOnSegment(Vector2 point,Vector2 start,Vector2 end)
+    {
+        Vector2 delta=end-start;float lengthSquared=delta.sqrMagnitude;if(lengthSquared<.0001f)return start;
+        return start+delta*Mathf.Clamp01(Vector2.Dot(point-start,delta)/lengthSquared);
+    }
     IEnumerator FallAndRecover(FissureData fissure)
     {
-        float side=player.position.x+player.position.y<0f?1f:-1f;
-        Vector3 safePosition=player.position;
-        if(fissure.horizontal)safePosition.y=Mathf.Clamp(fissure.coordinate+side*.85f,-4.65f,4.65f);
-        else safePosition.x=Mathf.Clamp(fissure.coordinate+side*.85f,-7.65f,7.65f);
+        Vector2 playerPosition=player.position,closest=fissure.path[0],tangent=Vector2.right;float closestDistance=float.MaxValue;
+        for(int i=0;i<fissure.path.Count-1;i++)
+        {
+            Vector2 candidate=ClosestPointOnSegment(playerPosition,fissure.path[i],fissure.path[i+1]);float distance=(candidate-playerPosition).sqrMagnitude;
+            if(distance<closestDistance){closestDistance=distance;closest=candidate;tangent=(fissure.path[i+1]-fissure.path[i]).normalized;}
+        }
+        Vector2 normal=new Vector2(-tangent.y,tangent.x);float escapeSide=Vector2.Dot(playerPosition-closest,normal)<0f?-1f:1f;
+        Vector2 safe=closest+normal*escapeSide*.85f;Vector3 safePosition=new Vector3(Mathf.Clamp(safe.x,-7.65f,7.65f),Mathf.Clamp(safe.y,-4.65f,4.65f),0);
         float elapsed=0f;
         while(elapsed<.22f)
         {
