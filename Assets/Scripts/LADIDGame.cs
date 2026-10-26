@@ -1,11 +1,17 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 public sealed class LADIDGame : MonoBehaviour
 {
     const float W = 8f, H = 5f, PhaseSeconds = 22f;
-    enum World { Volcano, Tidal }
+    enum World { Volcano, Tidal, Earthquake }
+    sealed class FissureData
+    {
+        public bool horizontal, triggered;
+        public float coordinate;
+    }
     Transform player;
     Transform hazardsRoot;
     SpriteRenderer playerRenderer;
@@ -14,8 +20,9 @@ public sealed class LADIDGame : MonoBehaviour
     Text worldText, timerText, livesText, messageText;
     Image banner, flash, shatter;
     World world;
+    readonly List<FissureData> fissures = new List<FissureData>();
     float phaseTime, survived, flashTime, damageTintTime, health = 100f;
-    bool ended, changing;
+    bool ended, changing, falling;
 
     void Start()
     {
@@ -35,7 +42,7 @@ public sealed class LADIDGame : MonoBehaviour
         playerRenderer = player.GetComponent<SpriteRenderer>();
         BuildHud();
         SetWorld(World.Volcano,true);
-        StartCoroutine(PhaseLoop()); StartCoroutine(VolcanoLoop()); StartCoroutine(TideLoop());
+        StartCoroutine(PhaseLoop()); StartCoroutine(VolcanoLoop()); StartCoroutine(TideLoop()); StartCoroutine(EarthquakeLoop());
     }
 
     void Update()
@@ -47,6 +54,7 @@ public sealed class LADIDGame : MonoBehaviour
         Vector3 p=player.position+(Vector3)(v*7f*dt); p.x=Mathf.Clamp(p.x,-7.65f,7.65f); p.y=Mathf.Clamp(p.y,-4.65f,4.65f); player.position=p;
         timerText.text="NEXT COLLAPSE  "+Mathf.CeilToInt(phaseTime).ToString("00")+"s";
         ApplyCoreContactDamage(dt);
+        ApplyFissureContact();
         livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";
         if(damageTintTime>0){damageTintTime-=dt;playerRenderer.color=new Color(1f,.16f,.16f);}
         else playerRenderer.color=playerColor;
@@ -74,7 +82,7 @@ public sealed class LADIDGame : MonoBehaviour
 
     IEnumerator PhaseLoop()
     {
-        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); SetWorld(world==World.Volcano?World.Tidal:World.Volcano,false); changing=false;}
+        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); World next=(World)(((int)world+1)%3); SetWorld(next,false); changing=false;}
     }
     IEnumerator PlayShatter(float duration)
     {
@@ -90,10 +98,11 @@ public sealed class LADIDGame : MonoBehaviour
     void SetWorld(World next,bool first)
     {
         if(!first) ClearHazards();
-        world=next; phaseTime=PhaseSeconds; cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):new Color(.04f,.19f,.27f);
-        worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":"02  /  TIDAL WORLD";
-        messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN";
-        if(!first){player.position=Vector3.zero; banner.GetComponentInChildren<Text>().text=next==World.Volcano?"ENTERING: VOLCANIC WORLD":"ENTERING: TIDAL WORLD"; banner.color=next==World.Volcano?new Color(.45f,.13f,.06f,.94f):new Color(.02f,.25f,.4f,.94f); StartCoroutine(HideBanner());}
+        world=next; phaseTime=PhaseSeconds;
+        cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):next==World.Tidal?new Color(.04f,.19f,.27f):new Color(.16f,.12f,.09f);
+        worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":next==World.Tidal?"02  /  TIDAL WORLD":"03  /  FRACTURED EARTH";
+        messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":next==World.Tidal?"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN":"EARTHQUAKE WORLD  •  LEAVE THE CRACKING GROUND BEFORE IT OPENS";
+        if(!first){player.position=Vector3.zero; banner.GetComponentInChildren<Text>().text=next==World.Volcano?"ENTERING: VOLCANIC WORLD":next==World.Tidal?"ENTERING: TIDAL WORLD":"ENTERING: FRACTURED EARTH"; banner.color=next==World.Volcano?new Color(.45f,.13f,.06f,.94f):next==World.Tidal?new Color(.02f,.25f,.4f,.94f):new Color(.32f,.2f,.1f,.94f); StartCoroutine(HideBanner());}
         else banner.gameObject.SetActive(false);
     }
     IEnumerator HideBanner(){yield return new WaitForSeconds(1.1f);if(!changing)banner.gameObject.SetActive(false);}
@@ -119,6 +128,44 @@ public sealed class LADIDGame : MonoBehaviour
         if(core)Destroy(core);
     }
     IEnumerator TideLoop(){while(true){yield return new WaitForSeconds(Random.Range(3f,4.2f));if(ended||changing||world!=World.Tidal)continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f)));}}
+    IEnumerator EarthquakeLoop(){while(true){yield return new WaitForSeconds(Random.Range(2.7f,3.8f));if(ended||changing||world!=World.Earthquake)continue;StartCoroutine(Fissure());}}
+    IEnumerator Fissure()
+    {
+        bool horizontal=Random.value>.5f;float coordinate=horizontal?Random.Range(-3.8f,3.8f):Random.Range(-6.5f,6.5f);
+        Vector3 position=horizontal?new Vector3(0,coordinate,-.2f):new Vector3(coordinate,0,-.2f);
+        GameObject crack=Rect("Fissure warning",position,horizontal?16f:.24f,horizontal?.24f:10f,new Color(1,.35f,.08f,.78f),2);
+        crack.transform.SetParent(hazardsRoot,true);
+        yield return new WaitForSeconds(1.1f);
+        if(ended||changing||world!=World.Earthquake){Destroy(crack);yield break;}
+        crack.name="Ground fissure";crack.GetComponent<SpriteRenderer>().color=new Color(.035f,.025f,.02f,1f);
+        FissureData data=new FissureData{horizontal=horizontal,coordinate=coordinate};fissures.Add(data);
+        yield return new WaitForSeconds(2.4f);
+        fissures.Remove(data);Destroy(crack);
+    }
+    void ApplyFissureContact()
+    {
+        if(world!=World.Earthquake||falling)return;
+        foreach(FissureData fissure in fissures)
+        {
+            if(fissure.triggered)continue;
+            bool overGap=fissure.horizontal?Mathf.Abs(player.position.y-fissure.coordinate)<.47f:Mathf.Abs(player.position.x-fissure.coordinate)<.47f;
+            if(!overGap)continue;
+            fissure.triggered=true;falling=true;TakeDamage(20f);StartCoroutine(FallAndRecover(fissure));break;
+        }
+    }
+    IEnumerator FallAndRecover(FissureData fissure)
+    {
+        float side=player.position.x+player.position.y<0f?1f:-1f;
+        Vector3 safePosition=player.position;
+        if(fissure.horizontal)safePosition.y=Mathf.Clamp(fissure.coordinate+side*.85f,-4.65f,4.65f);
+        else safePosition.x=Mathf.Clamp(fissure.coordinate+side*.85f,-7.65f,7.65f);
+        float elapsed=0f;
+        while(elapsed<.22f)
+        {
+            elapsed+=Time.deltaTime;float scale=Mathf.Lerp(.52f,.06f,elapsed/.22f);player.localScale=Vector3.one*scale;yield return null;
+        }
+        player.position=safePosition;player.localScale=Vector3.one*.52f;falling=false;
+    }
     IEnumerator Wave(float y)
     {
         float band=Random.Range(1.05f,1.55f);bool left=Random.value>.5f;float x=left?-10:10,end=left?10:-10;
@@ -144,8 +191,8 @@ public sealed class LADIDGame : MonoBehaviour
         }
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
-    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);}
-    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;ended=false;changing=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());}
+    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();}
+    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;ended=false;changing=false;falling=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Sprite CreateCrackSprite()
