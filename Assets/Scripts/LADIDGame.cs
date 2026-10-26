@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 public sealed class LADIDGame : MonoBehaviour
 {
-    const float W = 8f, H = 5f, PhaseSeconds = 22f;
+    const float W = 8f, H = 5f;
     enum World { Volcano, Tidal, Earthquake, AcidRain }
     sealed class FissureData
     {
@@ -17,11 +17,12 @@ public sealed class LADIDGame : MonoBehaviour
     SpriteRenderer playerRenderer;
     Color playerColor = new Color(.88f,.96f,1f);
     Camera cam;
-    Text worldText, timerText, livesText, messageText;
+    Text worldText, timerText, livesText, messageText, stageText;
     Image banner, flash, shatter;
     World world;
     readonly List<FissureData> fissures = new List<FissureData>();
-    float phaseTime, survived, flashTime, damageTintTime, health = 100f;
+    float phaseTime, phaseDuration, survived, flashTime, damageTintTime, health = 100f;
+    int stage = 1;
     bool ended, changing, falling;
 
     void Start()
@@ -41,7 +42,7 @@ public sealed class LADIDGame : MonoBehaviour
         player = Rect("Player",Vector3.zero,.52f,.52f,playerColor,5).transform;
         playerRenderer = player.GetComponent<SpriteRenderer>();
         BuildHud();
-        SetWorld(World.Volcano,true);
+        SetWorld((World)Random.Range(0,4),true);
         StartCoroutine(PhaseLoop()); StartCoroutine(VolcanoLoop()); StartCoroutine(TideLoop()); StartCoroutine(EarthquakeLoop()); StartCoroutine(AcidRainLoop());
     }
 
@@ -53,6 +54,7 @@ public sealed class LADIDGame : MonoBehaviour
         if(v.sqrMagnitude>1) v.Normalize();
         Vector3 p=player.position+(Vector3)(v*7f*dt); p.x=Mathf.Clamp(p.x,-7.65f,7.65f); p.y=Mathf.Clamp(p.y,-4.65f,4.65f); player.position=p;
         timerText.text="NEXT COLLAPSE  "+Mathf.CeilToInt(phaseTime).ToString("00")+"s";
+        stageText.text="STAGE  "+stage.ToString("00");
         ApplyCoreContactDamage(dt);
         ApplyFissureContact();
         livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";
@@ -69,6 +71,7 @@ public sealed class LADIDGame : MonoBehaviour
         worldText=Label(c.transform,"",20,TextAnchor.UpperRight,new Vector2(1,1),new Vector2(1,1),new Vector2(-28,-24),new Vector2(400,36),Color.white);
         timerText=Label(c.transform,"",16,TextAnchor.UpperRight,new Vector2(1,1),new Vector2(1,1),new Vector2(-28,-60),new Vector2(400,28),new Color(1,.75f,.45f));
         livesText=Label(c.transform,"",20,TextAnchor.UpperLeft,new Vector2(0,1),new Vector2(0,1),new Vector2(28,-72),new Vector2(300,30),Color.white);
+        stageText=Label(c.transform,"",16,TextAnchor.UpperLeft,new Vector2(0,1),new Vector2(0,1),new Vector2(28,-104),new Vector2(300,28),new Color(.75f,.85f,1f));
         messageText=Label(c.transform,"",16,TextAnchor.MiddleCenter,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,22),new Vector2(900,44),Color.white);
         banner=Panel(c.transform,new Vector2(.5f,.5f),Vector2.zero,new Vector2(560,100),new Color(.4f,.1f,.07f,.94f));
         Label(banner.transform,"",26,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);
@@ -82,8 +85,9 @@ public sealed class LADIDGame : MonoBehaviour
 
     IEnumerator PhaseLoop()
     {
-        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); World next=(World)(((int)world+1)%4); SetWorld(next,false); changing=false;}
+        while(!ended){yield return new WaitForSeconds(phaseDuration); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE  •  STAGE "+(stage+1).ToString("00"); yield return new WaitForSeconds(1.5f); stage++; SetWorld(RandomWorld(),false); changing=false;}
     }
+    World RandomWorld(){World next=world;while(next==world)next=(World)Random.Range(0,4);return next;}
     IEnumerator PlayShatter(float duration)
     {
         shatter.gameObject.SetActive(true); float elapsed=0f;
@@ -98,7 +102,7 @@ public sealed class LADIDGame : MonoBehaviour
     void SetWorld(World next,bool first)
     {
         if(!first) ClearHazards();
-        world=next; phaseTime=PhaseSeconds;
+        world=next; phaseDuration=Random.Range(10f,20f); phaseTime=phaseDuration;
         cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):next==World.Tidal?new Color(.04f,.19f,.27f):next==World.Earthquake?new Color(.16f,.12f,.09f):new Color(.08f,.16f,.09f);
         worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":next==World.Tidal?"02  /  TIDAL WORLD":next==World.Earthquake?"03  /  FRACTURED EARTH":"04  /  ACID RAIN";
         messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":next==World.Tidal?"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN":next==World.Earthquake?"EARTHQUAKE WORLD  •  LEAVE THE CRACKING GROUND BEFORE IT OPENS":"ACID RAIN WORLD  •  DODGE THE FALLING DROPS";
@@ -106,7 +110,7 @@ public sealed class LADIDGame : MonoBehaviour
         else banner.gameObject.SetActive(false);
     }
     IEnumerator HideBanner(){yield return new WaitForSeconds(1.1f);if(!changing)banner.gameObject.SetActive(false);}
-    IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||world!=World.Volcano)continue;StartCoroutine(Meteor(new Vector2(Random.Range(-7.3f,7.3f),Random.Range(-4.3f,4.3f))));}}
+    IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||world!=World.Volcano)continue;int projectileCount=Mathf.Min(stage,6);for(int i=0;i<projectileCount;i++)StartCoroutine(Meteor(new Vector2(Random.Range(-7.3f,7.3f),Random.Range(-4.3f,4.3f))));}}
     IEnumerator Meteor(Vector2 at)
     {
         GameObject warn=Disc("Impact warning",at,2.4f,new Color(1,.12f,.04f,.4f),2);
@@ -127,12 +131,12 @@ public sealed class LADIDGame : MonoBehaviour
         }
         if(core)Destroy(core);
     }
-    IEnumerator TideLoop(){while(true){yield return new WaitForSeconds(Random.Range(3f,4.2f));if(ended||changing||world!=World.Tidal)continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f)));}}
-    IEnumerator EarthquakeLoop(){while(true){yield return new WaitForSeconds(Random.Range(2.7f,3.8f));if(ended||changing||world!=World.Earthquake)continue;StartCoroutine(Fissure());}}
+    IEnumerator TideLoop(){while(true){float intervalReduction=(stage-1)*.25f;yield return new WaitForSeconds(Mathf.Max(.65f,Random.Range(3f,4.2f)-intervalReduction));if(ended||changing||world!=World.Tidal)continue;StartCoroutine(Wave(Random.Range(-2.6f,2.6f)));}}
+    IEnumerator EarthquakeLoop(){while(true){yield return new WaitForSeconds(Random.Range(2.7f,3.8f));if(ended||changing||world!=World.Earthquake)continue;int fissuresPerQuake=Mathf.Min(1+(stage-1)/2,5);for(int i=0;i<fissuresPerQuake;i++)StartCoroutine(Fissure());}}
     IEnumerator AcidRainLoop(){while(true){yield return new WaitForSeconds(Random.Range(.06f,.11f));if(ended||changing||world!=World.AcidRain)continue;StartCoroutine(AcidDrop());}}
     IEnumerator AcidDrop()
     {
-        float x=Random.Range(-7.8f,7.8f);float size=Random.Range(.11f,.2f);float speed=Random.Range(8f,12f);
+        float x=Random.Range(-7.8f,7.8f);float size=Random.Range(.11f,.2f);float speed=Random.Range(8f,12f)+(stage-1)*1.25f;
         GameObject drop=Rect("Acid droplet",new Vector3(x,Random.Range(5.4f,6.4f),-.25f),size*.65f,size,new Color(.55f,1f,.18f,.92f),3);
         drop.transform.SetParent(hazardsRoot,true);
         while(drop&&!ended&&!changing&&world==World.AcidRain&&drop.transform.position.y> -5.6f)
@@ -206,7 +210,7 @@ public sealed class LADIDGame : MonoBehaviour
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
     void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();}
-    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;ended=false;changing=false;falling=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
+    void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;SetWorld((World)Random.Range(0,4),true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Sprite CreateCrackSprite()
