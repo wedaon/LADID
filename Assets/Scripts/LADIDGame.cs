@@ -222,7 +222,7 @@ public sealed class LADIDGame : MonoBehaviour
         main.startSpeed=new ParticleSystem.MinMaxCurve(.1f,.45f);main.startSize=new ParticleSystem.MinMaxCurve(.035f,.1f);main.startColor=Color.white;
         var emission=atmosphere.emission;emission.rateOverTime=12f;
         var shape=atmosphere.shape;shape.shapeType=ParticleSystemShapeType.Box;shape.scale=new Vector3(16f,10f,.05f);
-        var velocity=atmosphere.velocityOverLifetime;velocity.enabled=true;velocity.separateAxes=true;velocity.x=new ParticleSystem.MinMaxCurve(0f);velocity.y=new ParticleSystem.MinMaxCurve(0f);velocity.z=new ParticleSystem.MinMaxCurve(0f);
+        var velocity=atmosphere.velocityOverLifetime;velocity.enabled=true;velocity.x=new ParticleSystem.MinMaxCurve(0f);velocity.y=new ParticleSystem.MinMaxCurve(0f);velocity.z=new ParticleSystem.MinMaxCurve(0f);
         var fade=atmosphere.colorOverLifetime;fade.enabled=true;var gradient=new Gradient();
         gradient.SetKeys(new[]{new GradientColorKey(Color.white,0f),new GradientColorKey(Color.white,1f)},new[]{new GradientAlphaKey(0f,0f),new GradientAlphaKey(.7f,.14f),new GradientAlphaKey(.55f,.78f),new GradientAlphaKey(0f,1f)});
         fade.color=new ParticleSystem.MinMaxGradient(gradient);
@@ -233,7 +233,7 @@ public sealed class LADIDGame : MonoBehaviour
         atmosphere.Clear(true);var main=atmosphere.main;Color first=WorldAccentColor(world),second=overlapMode?WorldAccentColor(secondaryWorld):first;
         main.startColor=new ParticleSystem.MinMaxGradient(first,second);
         Vector2 drift=overlapMode?(AtmosphereDrift(world)+AtmosphereDrift(secondaryWorld))*.5f:AtmosphereDrift(world);
-        var velocity=atmosphere.velocityOverLifetime;velocity.separateAxes=true;velocity.x=new ParticleSystem.MinMaxCurve(drift.x);velocity.y=new ParticleSystem.MinMaxCurve(drift.y);velocity.z=new ParticleSystem.MinMaxCurve(0f);
+        var velocity=atmosphere.velocityOverLifetime;velocity.x=new ParticleSystem.MinMaxCurve(drift.x);velocity.y=new ParticleSystem.MinMaxCurve(drift.y);velocity.z=new ParticleSystem.MinMaxCurve(0f);
         var shape=atmosphere.shape;
         if(overlapMode){shape.position=Vector3.zero;shape.scale=new Vector3(16f,10f,.05f);}
         else if(world==World.Volcano){shape.position=new Vector3(0,-4.8f,0);shape.scale=new Vector3(16f,.4f,.05f);}
