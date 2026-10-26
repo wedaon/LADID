@@ -12,7 +12,7 @@ public sealed class LADIDGame : MonoBehaviour
     Color playerColor = new Color(.88f,.96f,1f);
     Camera cam;
     Text worldText, timerText, livesText, messageText;
-    Image banner, flash;
+    Image banner, flash, shatter;
     World world;
     float phaseTime, survived, flashTime, damageTintTime, health = 100f;
     bool ended, changing;
@@ -66,12 +66,26 @@ public sealed class LADIDGame : MonoBehaviour
         Label(banner.transform,"",26,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);
         flash=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,new Color(1,.1f,.1f,0));
         flash.rectTransform.anchorMax=Vector2.one; flash.rectTransform.offsetMin=Vector2.zero; flash.rectTransform.offsetMax=Vector2.zero;
-        banner.gameObject.SetActive(false); flash.transform.SetAsLastSibling();
+        shatter=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
+        shatter.rectTransform.anchorMax=Vector2.one; shatter.rectTransform.offsetMin=Vector2.zero; shatter.rectTransform.offsetMax=Vector2.zero;
+        shatter.sprite=CreateCrackSprite(); shatter.type=Image.Type.Simple; shatter.raycastTarget=false; shatter.color=new Color(1,1,1,0);
+        banner.gameObject.SetActive(false); flash.transform.SetAsLastSibling(); shatter.transform.SetAsLastSibling(); shatter.gameObject.SetActive(false);
     }
 
     IEnumerator PhaseLoop()
     {
-        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; ClearHazards(); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); SetWorld(world==World.Volcano?World.Tidal:World.Volcano,false); changing=false;}
+        while(!ended){yield return new WaitForSeconds(PhaseSeconds); if(ended)yield break; changing=true; ClearHazards(); StartCoroutine(PlayShatter(1.5f)); banner.gameObject.SetActive(true); banner.GetComponentInChildren<Text>().text="DIMENSION COLLAPSE"; yield return new WaitForSeconds(1.5f); SetWorld(world==World.Volcano?World.Tidal:World.Volcano,false); changing=false;}
+    }
+    IEnumerator PlayShatter(float duration)
+    {
+        shatter.gameObject.SetActive(true); float elapsed=0f;
+        while(elapsed<duration)
+        {
+            elapsed+=Time.deltaTime; float progress=Mathf.Clamp01(elapsed/duration);
+            float alpha=progress<.12f?Mathf.Lerp(0f,.9f,progress/.12f):Mathf.Lerp(.9f,0f,(progress-.12f)/.88f);
+            shatter.color=new Color(1,1,1,alpha); yield return null;
+        }
+        shatter.color=new Color(1,1,1,0); shatter.gameObject.SetActive(false);
     }
     void SetWorld(World next,bool first)
     {
@@ -134,6 +148,45 @@ public sealed class LADIDGame : MonoBehaviour
     void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;ended=false;changing=false;flashTime=0;damageTintTime=0;playerRenderer.color=playerColor;player.position=Vector3.zero;SetWorld(World.Volcano,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
+    static Sprite CreateCrackSprite()
+    {
+        const int width=512,height=288; var pixels=new Color[width*height]; var random=new System.Random(27);
+        Vector2 center=new Vector2(width*.5f,height*.5f);
+        for(int i=0;i<10;i++)DrawCrack(pixels,width,height,center,Mathf.PI*2*i/10f+(float)(random.NextDouble()-.5)*.16f,random.Next(190,280),random,0);
+        var texture=new Texture2D(width,height,TextureFormat.RGBA32,false); texture.filterMode=FilterMode.Bilinear; texture.wrapMode=TextureWrapMode.Clamp;
+        texture.SetPixels(pixels); texture.Apply(); return Sprite.Create(texture,new Rect(0,0,width,height),new Vector2(.5f,.5f),100f);
+    }
+    static void DrawCrack(Color[] pixels,int width,int height,Vector2 start,float angle,float length,System.Random random,int depth)
+    {
+        Vector2 point=start; int segments=Mathf.Max(4,Mathf.RoundToInt(length/24f));
+        for(int i=0;i<segments;i++)
+        {
+            angle+=(float)(random.NextDouble()-.5)*.32f;
+            float step=length/segments; Vector2 next=point+new Vector2(Mathf.Cos(angle),Mathf.Sin(angle))*step;
+            DrawCrackLine(pixels,width,height,point,next,depth==0?1:0);
+            if(depth<2&&i==segments/2&&length>70f)
+            {
+                float branchAngle=angle+(random.Next(0,2)==0?-1f:1f)*(float)(.55+random.NextDouble()*.55);
+                DrawCrack(pixels,width,height,point,branchAngle,length*(float)(.35+random.NextDouble()*.2),random,depth+1);
+            }
+            point=next;
+            if(point.x<0||point.x>=width||point.y<0||point.y>=height)break;
+        }
+    }
+    static void DrawCrackLine(Color[] pixels,int width,int height,Vector2 from,Vector2 to,int radius)
+    {
+        int x0=Mathf.RoundToInt(from.x),y0=Mathf.RoundToInt(from.y),x1=Mathf.RoundToInt(to.x),y1=Mathf.RoundToInt(to.y);
+        int dx=Mathf.Abs(x1-x0),sx=x0<x1?1:-1,dy=-Mathf.Abs(y1-y0),sy=y0<y1?1:-1,error=dx+dy;
+        while(true)
+        {
+            for(int oy=-radius;oy<=radius;oy++)for(int ox=-radius;ox<=radius;ox++)
+            {
+                int x=x0+ox,y=y0+oy;if(x>=0&&x<width&&y>=0&&y<height)pixels[y*width+x]=Color.white;
+            }
+            if(x0==x1&&y0==y1)break;int twice=2*error;
+            if(twice>=dy){error+=dy;x0+=sx;}if(twice<=dx){error+=dx;y0+=sy;}
+        }
+    }
     static Text Label(Transform root,string value,int size,TextAnchor align,Vector2 amin,Vector2 amax,Vector2 pos,Vector2 dim,Color color){var o=new GameObject("Label");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=amin;r.anchorMax=amax;r.pivot=new Vector2(amin.x==amax.x?amin.x:.5f,amin.y==amax.y?amin.y:.5f);r.anchoredPosition=pos;r.sizeDelta=dim;var t=o.AddComponent<Text>();t.text=value;t.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");t.fontSize=size;t.fontStyle=FontStyle.Bold;t.alignment=align;t.color=color;t.horizontalOverflow=HorizontalWrapMode.Overflow;return t;}
     static Image Panel(Transform root,Vector2 anchor,Vector2 pos,Vector2 size,Color color){var o=new GameObject("Panel");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=r.anchorMax=anchor;r.pivot=anchor;r.anchoredPosition=pos;r.sizeDelta=size;var i=o.AddComponent<Image>();i.color=color;return i;}
     static class Sprites{static Sprite square,circle;public static Sprite Square=>square??(square=Make(false));public static Sprite Circle=>circle??(circle=Make(true));static Sprite Make(bool round){int n=round?64:2;var t=new Texture2D(n,n,TextureFormat.RGBA32,false);t.filterMode=FilterMode.Bilinear;var pixels=new Color[n*n];for(int y=0;y<n;y++)for(int x=0;x<n;x++){float dx=(x+.5f)/n*2-1,dy=(y+.5f)/n*2-1;pixels[y*n+x]=!round||dx*dx+dy*dy<=1?Color.white:Color.clear;}t.SetPixels(pixels);t.Apply();return Sprite.Create(t,new Rect(0,0,n,n),new Vector2(.5f,.5f),n);}}
