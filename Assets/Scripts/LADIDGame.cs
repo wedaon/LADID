@@ -24,8 +24,9 @@ public sealed class LADIDGame : MonoBehaviour
     Transform player;
     Transform hazardsRoot;
     Transform splitVisualRoot;
-    SpriteRenderer leftFieldRenderer, rightFieldRenderer;
-    readonly SpriteRenderer[] fieldEdges=new SpriteRenderer[4];
+    Mesh mapVisualMesh;
+    Color[] mapVisualColors;
+    int mapEdgeColorStart;
     SpriteRenderer playerRenderer;
     SpriteRenderer playerAura;
     Color playerColor = new Color(.88f,.96f,1f);
@@ -51,14 +52,7 @@ public sealed class LADIDGame : MonoBehaviour
         cam = new GameObject("Camera").AddComponent<Camera>();
         cam.orthographic = true; cam.orthographicSize = 6.5f; cam.transform.position = new Vector3(0,0,-10);
         cam.backgroundColor = new Color(.12f,.09f,.1f);
-        leftFieldRenderer=Rect("Field Left",new Vector3(-4,0),8,10,new Color(.2f,.19f,.19f),0).GetComponent<SpriteRenderer>();
-        rightFieldRenderer=Rect("Field Right",new Vector3(4,0),8,10,new Color(.2f,.19f,.19f),0).GetComponent<SpriteRenderer>();
-        for (int i=-7;i<=7;i++) Rect("Grid",new Vector3(i,0,.1f),.018f,10,new Color(1,1,1,.04f),1);
-        for (int i=-4;i<=4;i++) Rect("Grid",new Vector3(0,i,.1f),16,.018f,new Color(1,1,1,.04f),1);
-        fieldEdges[0]=Rect("Top edge",new Vector3(0,5.1f),16.3f,.2f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
-        fieldEdges[1]=Rect("Bottom edge",new Vector3(0,-5.1f),16.3f,.2f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
-        fieldEdges[2]=Rect("Left edge",new Vector3(-8.1f,0),.2f,10.3f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
-        fieldEdges[3]=Rect("Right edge",new Vector3(8.1f,0),.2f,10.3f,new Color(1,.48f,.18f),1).GetComponent<SpriteRenderer>();
+        BuildMapVisual();
         BuildSplitVisual();
         BuildAtmosphere();
         player = Rect("Player",Vector3.zero,.52f,.52f,playerColor,5).transform;
@@ -94,6 +88,45 @@ public sealed class LADIDGame : MonoBehaviour
         if(flashTime>0){flashTime-=dt;flash.color=new Color(1,.15f,.1f,Mathf.Clamp01(flashTime*.35f));}
         if(cameraShake>0f){cameraShake=Mathf.MoveTowards(cameraShake,0f,dt*1.4f);Vector2 jitter=Random.insideUnitCircle*cameraShake;cam.transform.position=new Vector3(jitter.x,jitter.y,-10f);}
         else cam.transform.position=new Vector3(0f,0f,-10f);
+    }
+
+    void BuildMapVisual()
+    {
+        var vertices=new List<Vector3>();var colors=new List<Color>();var triangles=new List<int>();
+        Color neutralField=new Color(.2f,.19f,.19f),gridColor=new Color(1f,1f,1f,.04f),edgeColor=new Color(1f,.48f,.18f);
+        AppendMapQuad(vertices,colors,triangles,-4f,0f,8f,10f,0f,neutralField);
+        AppendMapQuad(vertices,colors,triangles,4f,0f,8f,10f,0f,neutralField);
+        for(int x=-7;x<=7;x++)AppendMapQuad(vertices,colors,triangles,x,0f,.018f,10f,.1f,gridColor);
+        for(int y=-4;y<=4;y++)AppendMapQuad(vertices,colors,triangles,0f,y,16f,.018f,.1f,gridColor);
+        mapEdgeColorStart=colors.Count;
+        AppendMapQuad(vertices,colors,triangles,0f,5.1f,16.3f,.2f,.1f,edgeColor);
+        AppendMapQuad(vertices,colors,triangles,0f,-5.1f,16.3f,.2f,.1f,edgeColor);
+        AppendMapQuad(vertices,colors,triangles,-8.1f,0f,.2f,10.3f,.1f,edgeColor);
+        AppendMapQuad(vertices,colors,triangles,8.1f,0f,.2f,10.3f,.1f,edgeColor);
+
+        mapVisualColors=colors.ToArray();mapVisualMesh=new Mesh{name="LADID Map Visual"};mapVisualMesh.MarkDynamic();
+        mapVisualMesh.SetVertices(vertices);mapVisualMesh.SetColors(mapVisualColors);mapVisualMesh.SetTriangles(triangles,0);mapVisualMesh.RecalculateBounds();
+        GameObject map=new GameObject("Map Visual (batched)");map.AddComponent<MeshFilter>().sharedMesh=mapVisualMesh;
+        MeshRenderer renderer=map.AddComponent<MeshRenderer>();Shader shader=Shader.Find("Sprites/Default");
+        if(!shader)shader=Shader.Find("Unlit/Color");
+        renderer.sharedMaterial=new Material(shader){name="LADID Map Visual Material"};renderer.sortingOrder=1;
+    }
+    void SetMapVisualColors(Color leftField,Color rightField,Color edgeColor)
+    {
+        for(int i=0;i<4;i++)mapVisualColors[i]=leftField;
+        for(int i=4;i<8;i++)mapVisualColors[i]=rightField;
+        for(int i=mapEdgeColorStart;i<mapVisualColors.Length;i++)mapVisualColors[i]=edgeColor;
+        mapVisualMesh.SetColors(mapVisualColors);
+    }
+    static void AppendMapQuad(List<Vector3> vertices,List<Color> colors,List<int> triangles,float centerX,float centerY,float width,float height,float z,Color color)
+    {
+        int start=vertices.Count;float halfWidth=width*.5f,halfHeight=height*.5f;
+        vertices.Add(new Vector3(centerX-halfWidth,centerY-halfHeight,z));
+        vertices.Add(new Vector3(centerX-halfWidth,centerY+halfHeight,z));
+        vertices.Add(new Vector3(centerX+halfWidth,centerY+halfHeight,z));
+        vertices.Add(new Vector3(centerX+halfWidth,centerY-halfHeight,z));
+        colors.Add(color);colors.Add(color);colors.Add(color);colors.Add(color);
+        triangles.Add(start);triangles.Add(start+1);triangles.Add(start+2);triangles.Add(start);triangles.Add(start+2);triangles.Add(start+3);
     }
 
     void BuildHud()
@@ -280,17 +313,16 @@ public sealed class LADIDGame : MonoBehaviour
         if(darknessActive)CreateDarknessLights();
         ConfigureAtmosphere();
         splitVisualRoot.gameObject.SetActive(overlapMode);
-        Color edgeColor=WorldAccentColor(world);foreach(SpriteRenderer edge in fieldEdges)edge.color=edgeColor;
         Color auraTint=WorldAccentColor(world);auraTint.a=.16f;playerAura.color=auraTint;
         if(overlapMode)
         {
-            leftFieldRenderer.color=WorldFieldColor(world);rightFieldRenderer.color=WorldFieldColor(secondaryWorld);cam.backgroundColor=new Color(.035f,.035f,.05f);
+            SetMapVisualColors(WorldFieldColor(world),WorldFieldColor(secondaryWorld),WorldAccentColor(world));cam.backgroundColor=new Color(.035f,.035f,.05f);
             worldText.text="OVERLAP  /  "+WorldName(world)+"  +  "+WorldName(secondaryWorld);
             messageText.text=WorldName(world)+" + "+WorldName(secondaryWorld)+"  •  BOTH PATTERNS ACTIVE ACROSS THE FIELD";
         }
         else
         {
-            leftFieldRenderer.color=rightFieldRenderer.color=Color.Lerp(new Color(.2f,.19f,.19f),WorldFieldColor(next),.72f);
+            Color fieldColor=Color.Lerp(new Color(.2f,.19f,.19f),WorldFieldColor(next),.72f);SetMapVisualColors(fieldColor,fieldColor,WorldAccentColor(world));
             cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):next==World.Tidal?new Color(.04f,.19f,.27f):next==World.Earthquake?new Color(.16f,.12f,.09f):next==World.AcidRain?new Color(.08f,.16f,.09f):new Color(.01f,.015f,.035f);
             worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":next==World.Tidal?"02  /  TIDAL WORLD":next==World.Earthquake?"03  /  FRACTURED EARTH":next==World.AcidRain?"04  /  ACID RAIN":"05  /  DARKNESS";
             messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":next==World.Tidal?"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN":next==World.Earthquake?"EARTHQUAKE WORLD  •  LEAVE THE CRACKING GROUND BEFORE IT OPENS":next==World.AcidRain?"ACID RAIN WORLD  •  DODGE THE FALLING DROPS":"DARKNESS WORLD  •  STAY INSIDE THE LIGHT";
