@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -20,8 +21,30 @@ public sealed class LADIDMainMenu : MonoBehaviour
         public string fullscreenLabel="전체 화면";
         public string backLabel="뒤로";
         public string accentColor="#55D6FF";
+        public int titleFontSize=78;
+        public int subtitleFontSize=18;
+        public int buttonFontSize=20;
+        public string titleFontFamily="Arial";
+        public string subtitleFontFamily="Arial";
+        public string buttonFontFamily="Malgun Gothic";
+        public TextBoxConfig[] textBoxes=new TextBoxConfig[0];
     }
 
+    [Serializable]
+    public sealed class TextBoxConfig
+    {
+        public string text="새 텍스트";
+        public float x=50f;
+        public float y=50f;
+        public float width=36f;
+        public float height=10f;
+        public int fontSize=24;
+        public string fontFamily="Malgun Gothic";
+        public string color="#FFFFFF";
+        public string alignment="Center";
+    }
+
+    static readonly Dictionary<string,Font> FontCache=new Dictionary<string,Font>();
     MenuConfig config;
     Color accent;
     GameObject settingsOverlay;
@@ -56,6 +79,13 @@ public sealed class LADIDMainMenu : MonoBehaviour
             if(string.IsNullOrWhiteSpace(loaded.fullscreenLabel))loaded.fullscreenLabel=defaults.fullscreenLabel;
             if(string.IsNullOrWhiteSpace(loaded.backLabel))loaded.backLabel=defaults.backLabel;
             if(string.IsNullOrWhiteSpace(loaded.accentColor))loaded.accentColor=defaults.accentColor;
+            if(loaded.titleFontSize<=0)loaded.titleFontSize=defaults.titleFontSize;
+            if(loaded.subtitleFontSize<=0)loaded.subtitleFontSize=defaults.subtitleFontSize;
+            if(loaded.buttonFontSize<=0)loaded.buttonFontSize=defaults.buttonFontSize;
+            if(string.IsNullOrWhiteSpace(loaded.titleFontFamily))loaded.titleFontFamily=defaults.titleFontFamily;
+            if(string.IsNullOrWhiteSpace(loaded.subtitleFontFamily))loaded.subtitleFontFamily=defaults.subtitleFontFamily;
+            if(string.IsNullOrWhiteSpace(loaded.buttonFontFamily))loaded.buttonFontFamily=defaults.buttonFontFamily;
+            if(loaded.textBoxes==null)loaded.textBoxes=defaults.textBoxes;
             return loaded;
         }
         catch(Exception exception)
@@ -80,14 +110,15 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Color backgroundColor;if(!ColorUtility.TryParseHtmlString("#101923",out backgroundColor))backgroundColor=new Color(.06f,.09f,.14f);
         MakeImage(canvas.transform,"Background",Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,backgroundColor);
         MakeImage(canvas.transform,"Top accent",new Vector2(.5f,1f),new Vector2(.5f,1f),new Vector2(0f,-5f),new Vector2(300f,3f),accent);
-        MakeText(canvas.transform,config.title,78,TextAnchor.MiddleCenter,new Vector2(.5f,.5f),new Vector2(0f,153f),new Vector2(760f,100f),Color.white);
-        MakeText(canvas.transform,config.subtitle.ToUpperInvariant(),18,TextAnchor.MiddleCenter,new Vector2(.5f,.5f),new Vector2(0f,103f),new Vector2(760f,34f),new Color(.67f,.76f,.84f));
+        MakeText(canvas.transform,config.title,config.titleFontSize,TextAnchor.MiddleCenter,new Vector2(.5f,.5f),new Vector2(0f,153f),new Vector2(760f,100f),Color.white,config.titleFontFamily);
+        MakeText(canvas.transform,config.subtitle.ToUpperInvariant(),config.subtitleFontSize,TextAnchor.MiddleCenter,new Vector2(.5f,.5f),new Vector2(0f,103f),new Vector2(760f,34f),new Color(.67f,.76f,.84f),config.subtitleFontFamily);
         MakeImage(canvas.transform,"Title underline",new Vector2(.5f,.5f),new Vector2(.5f,.5f),new Vector2(0f,77f),new Vector2(76f,2f),new Color(accent.r,accent.g,accent.b,.75f));
 
-        MakeButton(canvas.transform,config.startLabel,new Vector2(.5f,.5f),new Vector2(0f,14f),new Vector2(350f,58f),accent,StartGame);
-        MakeButton(canvas.transform,config.settingsLabel,new Vector2(.5f,.5f),new Vector2(0f,-62f),new Vector2(350f,58f),new Color(.15f,.22f,.29f),OpenSettings);
-        MakeButton(canvas.transform,config.quitLabel,new Vector2(.5f,.5f),new Vector2(0f,-138f),new Vector2(350f,58f),new Color(.15f,.22f,.29f),QuitGame);
+        MakeButton(canvas.transform,config.startLabel,new Vector2(.5f,.5f),new Vector2(0f,14f),new Vector2(350f,58f),accent,config.buttonFontSize,config.buttonFontFamily,StartGame);
+        MakeButton(canvas.transform,config.settingsLabel,new Vector2(.5f,.5f),new Vector2(0f,-62f),new Vector2(350f,58f),new Color(.15f,.22f,.29f),config.buttonFontSize,config.buttonFontFamily,OpenSettings);
+        MakeButton(canvas.transform,config.quitLabel,new Vector2(.5f,.5f),new Vector2(0f,-138f),new Vector2(350f,58f),new Color(.15f,.22f,.29f),config.buttonFontSize,config.buttonFontFamily,QuitGame);
         MakeText(canvas.transform,"A SURVIVAL JOURNEY THROUGH COLLAPSING DIMENSIONS",12,TextAnchor.MiddleCenter,new Vector2(.5f,0f),new Vector2(0f,24f),new Vector2(900f,24f),new Color(.43f,.54f,.62f));
+        BuildCustomTextBoxes(canvas.transform);
         BuildSettingsPanel(canvas.transform);
     }
 
@@ -99,11 +130,11 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Image panel=MakeImage(settingsOverlay.transform,"Settings Panel",new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(560f,380f),new Color(.075f,.11f,.16f,1f));
         panel.raycastTarget=true;
         MakeImage(panel.transform,"Panel accent",new Vector2(.5f,1f),new Vector2(.5f,1f),new Vector2(0f,-2f),new Vector2(560f,3f),accent);
-        MakeText(panel.transform,config.settingsTitle,34,TextAnchor.MiddleCenter,new Vector2(.5f,1f),new Vector2(0f,-58f),new Vector2(460f,55f),Color.white);
-        MakeText(panel.transform,config.volumeLabel,18,TextAnchor.MiddleLeft,new Vector2(.5f,.5f),new Vector2(-150f,47f),new Vector2(270f,30f),new Color(.83f,.89f,.94f));
+        MakeText(panel.transform,config.settingsTitle,34,TextAnchor.MiddleCenter,new Vector2(.5f,1f),new Vector2(0f,-58f),new Vector2(460f,55f),Color.white,config.buttonFontFamily);
+        MakeText(panel.transform,config.volumeLabel,18,TextAnchor.MiddleLeft,new Vector2(.5f,.5f),new Vector2(-150f,47f),new Vector2(270f,30f),new Color(.83f,.89f,.94f),config.buttonFontFamily);
         BuildVolumeSlider(panel.transform);
         BuildFullscreenToggle(panel.transform);
-        MakeButton(panel.transform,config.backLabel,new Vector2(.5f,0f),new Vector2(0f,40f),new Vector2(230f,52f),accent,CloseSettings);
+        MakeButton(panel.transform,config.backLabel,new Vector2(.5f,0f),new Vector2(0f,40f),new Vector2(230f,52f),accent,config.buttonFontSize,config.buttonFontFamily,CloseSettings);
         settingsOverlay.SetActive(false);
     }
 
@@ -126,7 +157,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Image check=MakeImage(toggleObject.transform,"Check",new Vector2(.5f,.5f),new Vector2(.5f,.5f),Vector2.zero,new Vector2(16f,16f),accent);toggle.graphic=check;
         fullscreenToggle=toggle;fullscreenToggle.isOn=Screen.fullScreen;
         fullscreenToggle.onValueChanged.AddListener(value=>Screen.fullScreen=value);
-        MakeText(parent,config.fullscreenLabel,18,TextAnchor.MiddleLeft,new Vector2(.5f,.5f),new Vector2(45f,-52f),new Vector2(260f,34f),new Color(.83f,.89f,.94f));
+        MakeText(parent,config.fullscreenLabel,18,TextAnchor.MiddleLeft,new Vector2(.5f,.5f),new Vector2(45f,-52f),new Vector2(260f,34f),new Color(.83f,.89f,.94f),config.buttonFontFamily);
     }
 
     void StartGame(){SceneManager.LoadScene("InPlay");}
@@ -140,14 +171,30 @@ public sealed class LADIDMainMenu : MonoBehaviour
 #endif
     }
 
-    static Button MakeButton(Transform parent,string label,Vector2 anchor,Vector2 position,Vector2 size,Color baseColor,UnityEngine.Events.UnityAction action)
+    void BuildCustomTextBoxes(Transform canvas)
+    {
+        if(config.textBoxes==null)return;
+        foreach(TextBoxConfig box in config.textBoxes)
+        {
+            if(box==null||string.IsNullOrWhiteSpace(box.text))continue;
+            float x=Mathf.Clamp(box.x,0f,100f),y=Mathf.Clamp(box.y,0f,100f);
+            float width=Mathf.Clamp(box.width,5f,100f),height=Mathf.Clamp(box.height,4f,100f);
+            int fontSize=Mathf.Clamp(box.fontSize,8,120);
+            Color color;if(!ColorUtility.TryParseHtmlString(box.color,out color))color=Color.white;
+            TextAnchor alignment=box.alignment=="Left"?TextAnchor.MiddleLeft:box.alignment=="Right"?TextAnchor.MiddleRight:TextAnchor.MiddleCenter;
+            Text text=MakeText(canvas,box.text,fontSize,alignment,new Vector2(x*.01f,1f-y*.01f),Vector2.zero,new Vector2(width*12.8f,height*7.2f),color,box.fontFamily);
+            text.gameObject.name="Custom Text Box";
+        }
+    }
+
+    static Button MakeButton(Transform parent,string label,Vector2 anchor,Vector2 position,Vector2 size,Color baseColor,int fontSize,string fontFamily,UnityEngine.Events.UnityAction action)
     {
         var buttonObject=new GameObject(label+" Button",typeof(RectTransform),typeof(Image),typeof(Button));buttonObject.transform.SetParent(parent,false);
         RectTransform rect=buttonObject.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=anchor;rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=position;rect.sizeDelta=size;
         Image image=buttonObject.GetComponent<Image>();image.color=new Color(baseColor.r*.22f,baseColor.g*.28f,baseColor.b*.32f,.96f);
         Button button=buttonObject.GetComponent<Button>();button.targetGraphic=image;ColorBlock colors=button.colors;colors.normalColor=image.color;colors.highlightedColor=new Color(baseColor.r,baseColor.g,baseColor.b,.46f);colors.pressedColor=baseColor;colors.selectedColor=colors.highlightedColor;button.colors=colors;button.onClick.AddListener(action);
         MakeImage(buttonObject.transform,"Accent edge",new Vector2(0f,0f),new Vector2(0f,1f),new Vector2(2f,0f),new Vector2(3f,0f),baseColor);
-        MakeText(buttonObject.transform,label,20,TextAnchor.MiddleCenter,new Vector2(.5f,.5f),Vector2.zero,size,Color.white);
+        MakeText(buttonObject.transform,label,fontSize,TextAnchor.MiddleCenter,new Vector2(.5f,.5f),Vector2.zero,size,Color.white,fontFamily);
         return button;
     }
 
@@ -158,11 +205,21 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Image image=imageObject.GetComponent<Image>();image.color=color;return image;
     }
 
-    static Text MakeText(Transform parent,string value,int size,TextAnchor alignment,Vector2 anchor,Vector2 position,Vector2 dimensions,Color color)
+    static Text MakeText(Transform parent,string value,int size,TextAnchor alignment,Vector2 anchor,Vector2 position,Vector2 dimensions,Color color,string fontFamily="Arial")
     {
         var textObject=new GameObject("Text",typeof(RectTransform),typeof(CanvasRenderer),typeof(Text));textObject.transform.SetParent(parent,false);
         RectTransform rect=textObject.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=anchor;rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=position;rect.sizeDelta=dimensions;
-        Text text=textObject.GetComponent<Text>();text.text=value;text.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");text.fontSize=size;text.fontStyle=FontStyle.Bold;text.alignment=alignment;text.color=color;text.horizontalOverflow=HorizontalWrapMode.Overflow;text.verticalOverflow=VerticalWrapMode.Overflow;text.raycastTarget=false;
+        Text text=textObject.GetComponent<Text>();text.text=value;text.font=GetFont(fontFamily);text.fontSize=size;text.fontStyle=FontStyle.Bold;text.alignment=alignment;text.color=color;text.horizontalOverflow=HorizontalWrapMode.Overflow;text.verticalOverflow=VerticalWrapMode.Overflow;text.raycastTarget=false;
         return text;
+    }
+
+    static Font GetFont(string family)
+    {
+        if(string.IsNullOrWhiteSpace(family))family="Arial";
+        if(FontCache.TryGetValue(family,out Font cached)&&cached)return cached;
+        Font font=null;
+        try{font=Font.CreateDynamicFontFromOSFont(family,32);}catch(Exception){ }
+        if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        FontCache[family]=font;return font;
     }
 }

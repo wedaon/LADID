@@ -8,5 +8,12 @@
   "volumeLabel": "마스터 볼륨",
   "fullscreenLabel": "전체 화면",
   "backLabel": "뒤로",
-  "accentColor": "#55D6FF"
+  "accentColor": "#55D6FF",
+  "titleFontSize": 78,
+  "subtitleFontSize": 18,
+  "buttonFontSize": 20,
+  "titleFontFamily": "Arial",
+  "subtitleFontFamily": "Arial",
+  "buttonFontFamily": "Malgun Gothic",
+  "textBoxes": []
 }
