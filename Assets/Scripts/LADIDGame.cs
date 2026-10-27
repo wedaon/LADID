@@ -253,6 +253,7 @@ public sealed class LADIDGame : MonoBehaviour
     void BuildAtmosphere()
     {
         GameObject particles=new GameObject("Dimension Atmosphere");atmosphere=particles.AddComponent<ParticleSystem>();
+        atmosphere.Stop(true,ParticleSystemStopBehavior.StopEmittingAndClear);
         var main=atmosphere.main;main.loop=true;main.playOnAwake=false;main.duration=6f;main.maxParticles=320;
         main.simulationSpace=ParticleSystemSimulationSpace.World;main.startLifetime=new ParticleSystem.MinMaxCurve(1.8f,4.2f);
         main.startSpeed=new ParticleSystem.MinMaxCurve(.1f,.45f);main.startSize=new ParticleSystem.MinMaxCurve(.035f,.1f);main.startColor=Color.white;
