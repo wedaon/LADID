@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public sealed class LADIDGame : MonoBehaviour
@@ -131,6 +133,7 @@ public sealed class LADIDGame : MonoBehaviour
 
     void BuildHud()
     {
+        EnsureEventSystem();
         var c=new GameObject("HUD").AddComponent<Canvas>(); c.renderMode=RenderMode.ScreenSpaceOverlay; c.sortingOrder=20;
         var scaler=c.gameObject.AddComponent<CanvasScaler>(); scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution=new Vector2(1280,720); c.gameObject.AddComponent<GraphicRaycaster>();
         Label(c.transform,"LADID  /  LIFE AND DEATH IN DIMENSION",24,TextAnchor.UpperLeft,new Vector2(0,1),new Vector2(0,1),new Vector2(28,-22),new Vector2(760,40),Color.white);
@@ -139,9 +142,13 @@ public sealed class LADIDGame : MonoBehaviour
         livesText=Label(c.transform,"",20,TextAnchor.UpperLeft,new Vector2(0,1),new Vector2(0,1),new Vector2(28,-72),new Vector2(300,30),Color.white);
         stageText=Label(c.transform,"",16,TextAnchor.UpperLeft,new Vector2(0,1),new Vector2(0,1),new Vector2(28,-104),new Vector2(300,28),new Color(.75f,.85f,1f));
         messageText=Label(c.transform,"",16,TextAnchor.MiddleCenter,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,22),new Vector2(900,44),Color.white);
-        banner=Panel(c.transform,new Vector2(.5f,.5f),Vector2.zero,new Vector2(560,100),new Color(.4f,.1f,.07f,.94f));
-        Label(banner.transform,"",26,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);
+        banner=Panel(c.transform,new Vector2(.5f,.5f),Vector2.zero,new Vector2(560,250),new Color(.04f,.07f,.11f,.97f));
+        Label(banner.transform,"GAME OVER",38,TextAnchor.MiddleCenter,new Vector2(.5f,1f),new Vector2(.5f,1f),new Vector2(0,-48),new Vector2(520,58),Color.white);
+        Label(banner.transform,"차원에서 버텼습니다. 다시 도전하거나 메인 메뉴로 돌아가세요.",15,TextAnchor.MiddleCenter,new Vector2(.5f,1f),new Vector2(.5f,1f),new Vector2(0,-105),new Vector2(520,34),new Color(.72f,.82f,.9f));
+        CreateGameOverButton(banner.transform,"다시 시작",new Vector2(-115,-75),Restart);
+        CreateGameOverButton(banner.transform,"메인 메뉴",new Vector2(115,-75),ReturnToMainMenu);
         flash=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,new Color(1,.1f,.1f,0));
+        flash.raycastTarget=false;
         flash.rectTransform.anchorMax=Vector2.one; flash.rectTransform.offsetMin=Vector2.zero; flash.rectTransform.offsetMax=Vector2.zero;
         shatterGlow=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
         shatterGlow.rectTransform.anchorMax=Vector2.one; shatterGlow.rectTransform.offsetMin=Vector2.zero; shatterGlow.rectTransform.offsetMax=Vector2.zero;
@@ -163,6 +170,24 @@ public sealed class LADIDGame : MonoBehaviour
         flash.transform.SetAsLastSibling();shatterGlow.transform.SetAsLastSibling();shatter.transform.SetAsLastSibling();shatterFlash.transform.SetAsLastSibling();
         shatterGlow.gameObject.SetActive(false);shatter.gameObject.SetActive(false);shatterFlash.gameObject.SetActive(false);
     }
+
+    void EnsureEventSystem()
+    {
+        if(FindObjectOfType<EventSystem>())return;
+        var eventSystem=new GameObject("EventSystem",typeof(EventSystem),typeof(StandaloneInputModule));DontDestroyOnLoad(eventSystem);
+    }
+
+    void CreateGameOverButton(Transform parent,string label,Vector2 position,System.Action action)
+    {
+        var buttonObject=new GameObject(label+" Button",typeof(RectTransform),typeof(Image),typeof(Button));buttonObject.transform.SetParent(parent,false);
+        var rect=buttonObject.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=new Vector2(.5f,.5f);rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=position;rect.sizeDelta=new Vector2(205,52);
+        var image=buttonObject.GetComponent<Image>();image.color=label=="메인 메뉴"?new Color(.1f,.22f,.3f,1):new Color(.45f,.14f,.12f,1);
+        var button=buttonObject.GetComponent<Button>();button.targetGraphic=image;button.onClick.AddListener(()=>action());
+        var colors=button.colors;colors.highlightedColor=Color.Lerp(image.color,Color.white,.18f);colors.pressedColor=Color.Lerp(image.color,Color.white,.32f);button.colors=colors;
+        Text text=Label(buttonObject.transform,label,19,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);text.raycastTarget=false;
+    }
+
+    void ReturnToMainMenu(){SceneManager.LoadScene("MainMenu");}
 
     IEnumerator PhaseLoop()
     {
@@ -531,7 +556,7 @@ public sealed class LADIDGame : MonoBehaviour
             if(alpha<darknessPixels[index].a)darknessPixels[index]=new Color32(0,0,0,alpha);
         }
     }
-    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="LOST BETWEEN DIMENSIONS  •  PRESS R TO RESTART";banner.GetComponentInChildren<Text>().text="DIMENSION LOST";banner.gameObject.SetActive(true);}}
+    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="";banner.gameObject.SetActive(true);}}
     void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
     void Restart(){StopAllCoroutines();ClearHazards();health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
