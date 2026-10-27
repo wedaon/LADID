@@ -6,16 +6,16 @@ using UnityEngine.SceneManagement;
 
 public static class LADIDSceneBuilder
 {
-    [MenuItem("LADID/Create Prototype Scene")]
+    [MenuItem("LADID/Create InPlay Scene")]
     public static void CreateScene()
     {
-        const string path = "Assets/Scenes/LADID.unity";
+        const string path = "Assets/Scenes/InPlay.unity";
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        new GameObject("LADID Game").AddComponent<LADIDGame>();
+        new GameObject("InPlay Game").AddComponent<LADIDGame>();
         EditorSceneManager.SaveScene(scene, path);
         var scenes = new List<EditorBuildSettingsScene> { new EditorBuildSettingsScene(path, true) };
         foreach (var item in EditorBuildSettings.scenes) if (item.path != path) scenes.Add(item);
         EditorBuildSettings.scenes = scenes.ToArray();
-        Debug.Log("LADID scene created. Press Play to start.");
+        Debug.Log("InPlay scene created. Press Play to start.");
     }
 }

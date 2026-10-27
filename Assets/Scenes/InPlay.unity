@@ -133,7 +133,7 @@ GameObject:
   - component: {fileID: 591319494}
   - component: {fileID: 591319493}
   m_Layer: 0
-  m_Name: LADID Game
+  m_Name: InPlay Game
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -6,6 +6,6 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/LADID.unity
+    path: Assets/Scenes/InPlay.unity
     guid: dd11bde00421cde46b4d8e9132992c74
   m_configObjects: {}
