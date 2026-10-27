@@ -173,8 +173,15 @@ public sealed class LADIDMainMenu : MonoBehaviour
 
     void EnsureEventSystem()
     {
-        if(FindObjectOfType<EventSystem>())return;
-        var events=new GameObject("EventSystem",typeof(EventSystem),typeof(StandaloneInputModule));DontDestroyOnLoad(events);
+        EventSystem eventSystem=EventSystem.current?EventSystem.current:FindObjectOfType<EventSystem>();
+        if(!eventSystem)
+        {
+            var events=new GameObject("EventSystem",typeof(EventSystem));DontDestroyOnLoad(events);
+            eventSystem=events.GetComponent<EventSystem>();
+        }
+        StandaloneInputModule inputModule=eventSystem.GetComponent<StandaloneInputModule>();
+        if(!inputModule)inputModule=eventSystem.gameObject.AddComponent<StandaloneInputModule>();
+        inputModule.enabled=true;inputModule.forceModuleActive=true;
     }
 
     void BuildMenu()
@@ -231,7 +238,8 @@ public sealed class LADIDMainMenu : MonoBehaviour
     {
         GameObject buttonObject=new GameObject(element.label,typeof(RectTransform),typeof(Image),typeof(Button));buttonObject.transform.SetParent(parent,false);
         ApplyRect(buttonObject.GetComponent<RectTransform>(),element);Image image=buttonObject.GetComponent<Image>();image.color=GetBackgroundColor(element);
-        Button button=buttonObject.GetComponent<Button>();button.targetGraphic=image;button.interactable=element.interactable;
+        image.raycastTarget=true;
+        Button button=buttonObject.GetComponent<Button>();button.enabled=true;button.targetGraphic=image;button.interactable=element.interactable;
         ColorBlock colors=button.colors;colors.normalColor=image.color;colors.highlightedColor=Color.Lerp(image.color,accent,.3f);colors.pressedColor=Color.Lerp(image.color,accent,.55f);colors.selectedColor=colors.highlightedColor;button.colors=colors;
         if(element.id=="startButton")button.onClick.AddListener(StartGame);
         else if(element.id=="settingsButton")button.onClick.AddListener(OpenSettings);
