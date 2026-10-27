@@ -55,7 +55,11 @@ public sealed class LADIDMainMenu : MonoBehaviour
     {
         Application.targetFrameRate=60;config=LoadConfig();
         if(!ColorUtility.TryParseHtmlString(config.accentColor,out accent))accent=new Color(.33f,.84f,1f);
-        foreach(MenuElementConfig element in config.elements)if(element!=null&&!string.IsNullOrEmpty(element.id))elements[element.id]=element;
+        foreach(MenuElementConfig element in config.elements)if(element!=null&&!string.IsNullOrEmpty(element.id))
+        {
+            if(element.id.Equals("settingsButton",StringComparison.OrdinalIgnoreCase)){element.type="button";element.group="main";element.visible=true;element.interactable=true;}
+            elements[element.id]=element;
+        }
         EnsureEventSystem();BuildMenu();
     }
 
@@ -261,7 +265,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Button button=buttonObject.GetComponent<Button>();button.enabled=true;button.targetGraphic=image;button.interactable=element.interactable;
         ColorBlock colors=button.colors;colors.normalColor=image.color;colors.highlightedColor=Color.Lerp(image.color,accent,.3f);colors.pressedColor=Color.Lerp(image.color,accent,.55f);colors.selectedColor=colors.highlightedColor;button.colors=colors;
         if(element.id=="startButton")button.onClick.AddListener(StartGame);
-        else if(element.id=="settingsButton")button.onClick.AddListener(OpenSettings);
+        else if(element.id.IndexOf("settings",StringComparison.OrdinalIgnoreCase)>=0||element.label.Contains("설정"))button.onClick.AddListener(OpenSettings);
         else if(element.id=="quitButton")button.onClick.AddListener(QuitGame);
         else if(element.id=="backButton")button.onClick.AddListener(CloseSettings);
         buttonObject.SetActive(element.visible);
