@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LADID 메뉴 편집기</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1119;--panel:#121c27;--line:#253646;--muted:#8fa4b5;--text:#eef6fb;--accent:#55d6ff}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 72% 18%,#1b3240 0,transparent 40%),var(--bg);color:var(--text);font:15px/1.5 "Segoe UI","Malgun Gothic",sans-serif;min-height:100vh}
+    header{height:76px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 30px;background:#0b1119dd;position:sticky;top:0;z-index:2;backdrop-filter:blur(12px)}
+    .brand{font-weight:800;letter-spacing:.16em}.brand span{color:var(--accent)}.actions{display:flex;gap:10px}button{font:inherit;color:var(--text);border:1px solid #355064;background:#1a2a38;border-radius:8px;padding:10px 15px;cursor:pointer}button:hover{border-color:var(--accent);background:#203a4a}.primary{background:var(--accent);border-color:var(--accent);color:#07121a;font-weight:800}.primary:hover{filter:brightness(1.1);background:var(--accent)}
+    main{max-width:1420px;margin:auto;padding:28px;display:grid;grid-template-columns:minmax(300px,430px) minmax(480px,1fr);gap:24px}.editor,.previewCard{background:linear-gradient(145deg,#14202c,#101821);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 80px #0004}.editor{padding:24px}.eyebrow{color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.18em}.editor h1{margin:6px 0 4px;font-size:25px}.intro{color:var(--muted);font-size:13px;margin:0 0 20px}.field{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:12px;margin:12px 0}.field label{font-size:13px;color:#c4d2dc}.field input{min-width:0;width:100%;height:38px;border:1px solid #2d4152;border-radius:7px;background:#0b131b;color:var(--text);padding:0 10px;font:inherit}.field input:focus{outline:1px solid var(--accent);border-color:var(--accent)}.field input[type=color]{padding:4px;height:40px}.section{margin:22px 0 8px;color:#eaf8ff;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.tip{border-top:1px solid var(--line);padding-top:15px;margin-top:22px;color:var(--muted);font-size:12px}.status{min-height:20px;color:var(--accent);font-size:12px;margin-top:9px}
+    .previewCard{padding:22px;display:flex;flex-direction:column;min-height:640px}.previewHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;color:var(--muted);font-size:12px}.preview{--accent:#55d6ff;position:relative;flex:1;min-height:550px;overflow:hidden;border:1px solid #314859;border-radius:10px;background:radial-gradient(ellipse at 50% 38%,#233b49 0,#14212c 40%,#0b121a 78%);display:flex;flex-direction:column;align-items:center;justify-content:center}.preview:before,.preview:after{content:"";position:absolute;inset:12% 8%;border:1px solid color-mix(in srgb,var(--accent) 22%,transparent);pointer-events:none}.preview:after{inset:16% 11%;border-color:#a8c4d010}.mark{position:absolute;top:18%;width:150px;height:2px;background:var(--accent);box-shadow:0 0 22px var(--accent);opacity:.8}.title{z-index:1;font-size:clamp(42px,7vw,76px);font-weight:900;letter-spacing:.1em;text-shadow:0 0 32px color-mix(in srgb,var(--accent) 28%,transparent)}.subtitle{z-index:1;color:#a8bac7;font-size:12px;letter-spacing:.2em;text-align:center;margin:0 15px 26px}.menuButtons{z-index:1;width:min(300px,72%);display:grid;gap:12px}.menuButton{border:1px solid color-mix(in srgb,var(--accent) 52%,#263746);background:#0c1721cc;padding:12px;text-align:center;border-radius:6px;font-weight:700;box-shadow:inset 3px 0 0 var(--accent);transition:.15s}.menuButton:first-child{background:color-mix(in srgb,var(--accent) 17%,#0c1721);color:#f5fcff}.menuButton:hover{transform:translateY(-2px);border-color:var(--accent)}.footer{z-index:1;position:absolute;bottom:7%;font-size:10px;color:#748a99;letter-spacing:.13em}
+    @media(max-width:900px){main{grid-template-columns:1fr;padding:16px}.previewCard{min-height:520px}.preview{min-height:440px}header{padding:0 16px}.actions button{padding:8px 10px;font-size:12px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand"><span>L</span>ADID <small style="color:#708596;font-weight:500;letter-spacing:.05em">/ MENU EDITOR</small></div><div class="actions"><button id="importBtn">JSON 불러오기</button><button id="resetBtn">기본값</button><button class="primary" id="saveBtn">JSON 저장</button><input id="fileInput" type="file" accept=".json,application/json" hidden></div></header>
+  <main>
+    <section class="editor">
+      <div class="eyebrow">MAIN MENU CONFIG</div><h1>메뉴 직접 수정</h1><p class="intro">왼쪽 값을 바꾸면 오른쪽 미리보기에 바로 반영됩니다.</p>
+      <div class="section">메인 화면</div>
+      <div class="field"><label for="title">게임 제목</label><input id="title" data-key="title" value="LADID"></div>
+      <div class="field"><label for="subtitle">부제목</label><input id="subtitle" data-key="subtitle" value="LIFE AND DEATH IN DIMENSION"></div>
+      <div class="field"><label for="startLabel">시작 버튼</label><input id="startLabel" data-key="startLabel" value="게임 시작"></div>
+      <div class="field"><label for="settingsLabel">설정 버튼</label><input id="settingsLabel" data-key="settingsLabel" value="설정"></div>
+      <div class="field"><label for="quitLabel">나가기 버튼</label><input id="quitLabel" data-key="quitLabel" value="게임 나가기"></div>
+      <div class="section">설정 창</div>
+      <div class="field"><label for="settingsTitle">설정 제목</label><input id="settingsTitle" data-key="settingsTitle" value="설정"></div>
+      <div class="field"><label for="volumeLabel">볼륨 항목</label><input id="volumeLabel" data-key="volumeLabel" value="마스터 볼륨"></div>
+      <div class="field"><label for="fullscreenLabel">화면 항목</label><input id="fullscreenLabel" data-key="fullscreenLabel" value="전체 화면"></div>
+      <div class="field"><label for="backLabel">뒤로 버튼</label><input id="backLabel" data-key="backLabel" value="뒤로"></div>
+      <div class="field"><label for="accentColor">강조 색상</label><input id="accentColor" data-key="accentColor" type="color" value="#55d6ff"></div>
+      <div class="tip">적용 방법: <b>JSON 저장</b>을 누른 뒤 내려받은 <code>main-menu.json</code>을 <code>Assets/StreamingAssets</code> 폴더에 덮어쓰세요. Unity에서 MainMenu를 다시 실행하면 적용됩니다.</div>
+      <div class="status" id="status"></div>
+    </section>
+    <section class="previewCard"><div class="previewHead"><span>LIVE PREVIEW</span><span>16:9 menu mockup</span></div><div class="preview" id="preview"><div class="mark"></div><div class="title" id="previewTitle">LADID</div><div class="subtitle" id="previewSubtitle">LIFE AND DEATH IN DIMENSION</div><div class="menuButtons"><div class="menuButton" id="previewStart">게임 시작</div><div class="menuButton" id="previewSettings">설정</div><div class="menuButton" id="previewQuit">게임 나가기</div></div><div class="footer">A SURVIVAL JOURNEY THROUGH COLLAPSING DIMENSIONS</div></div></section>
+  </main>
+  <script>
+    const defaults={title:"LADID",subtitle:"LIFE AND DEATH IN DIMENSION",startLabel:"게임 시작",settingsLabel:"설정",quitLabel:"게임 나가기",settingsTitle:"설정",volumeLabel:"마스터 볼륨",fullscreenLabel:"전체 화면",backLabel:"뒤로",accentColor:"#55d6ff"};
+    const inputs=[...document.querySelectorAll("[data-key]")];
+    function values(){const data={};for(const input of inputs)data[input.dataset.key]=input.value;return data;}
+    function apply(data){for(const input of inputs){if(data[input.dataset.key]!==undefined)input.value=data[input.dataset.key];}refresh();}
+    function refresh(){const d=values();document.documentElement.style.setProperty("--accent",d.accentColor);document.getElementById("preview").style.setProperty("--accent",d.accentColor);document.getElementById("previewTitle").textContent=d.title;document.getElementById("previewSubtitle").textContent=d.subtitle.toUpperCase();document.getElementById("previewStart").textContent=d.startLabel;document.getElementById("previewSettings").textContent=d.settingsLabel;document.getElementById("previewQuit").textContent=d.quitLabel;}
+    for(const input of inputs)input.addEventListener("input",refresh);
+    document.getElementById("saveBtn").addEventListener("click",()=>{const blob=new Blob([JSON.stringify(values(),null,2)+"\n"],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="main-menu.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.getElementById("status").textContent="main-menu.json을 저장했습니다. StreamingAssets 폴더에 넣어 주세요.";});
+    document.getElementById("resetBtn").addEventListener("click",()=>{apply(defaults);document.getElementById("status").textContent="기본값으로 되돌렸습니다.";});
+    document.getElementById("importBtn").addEventListener("click",()=>document.getElementById("fileInput").click());
+    document.getElementById("fileInput").addEventListener("change",async event=>{const file=event.target.files[0];if(!file)return;try{apply(JSON.parse(await file.text()));document.getElementById("status").textContent=file.name+" 설정을 불러왔습니다.";}catch(error){document.getElementById("status").textContent="JSON 파일을 읽지 못했습니다.";}event.target.value="";});
+    refresh();
+  </script>
+</body>
+</html>
