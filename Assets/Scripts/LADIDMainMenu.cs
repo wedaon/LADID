@@ -225,6 +225,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
             else if(element.type=="toggle")CreateToggleElement(parent,element);
         }
         if(fullscreenToggle&&fullscreenCheck)fullscreenToggle.graphic=fullscreenCheck;
+        settingsRoot.transform.SetAsLastSibling();
         UpdateVolumeDisplay(AudioListener.volume);settingsRoot.SetActive(false);
     }
 
