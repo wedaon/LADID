@@ -181,7 +181,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
         }
         StandaloneInputModule inputModule=eventSystem.GetComponent<StandaloneInputModule>();
         if(!inputModule)inputModule=eventSystem.gameObject.AddComponent<StandaloneInputModule>();
-        inputModule.enabled=true;inputModule.forceModuleActive=true;
+        inputModule.enabled=true;
     }
 
     void BuildMenu()
