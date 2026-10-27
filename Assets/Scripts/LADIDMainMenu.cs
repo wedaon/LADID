@@ -179,6 +179,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
 
     void BuildMenu()
     {
+        EnsureMenuCamera();
         var canvasObject=new GameObject("Main Menu Canvas",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster));
         Canvas canvas=canvasObject.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=20;
         CanvasScaler scaler=canvasObject.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
@@ -195,6 +196,17 @@ public sealed class LADIDMainMenu : MonoBehaviour
         }
         if(fullscreenToggle&&fullscreenCheck)fullscreenToggle.graphic=fullscreenCheck;
         UpdateVolumeDisplay(AudioListener.volume);settingsRoot.SetActive(false);
+    }
+
+    void EnsureMenuCamera()
+    {
+        Camera menuCamera=FindObjectOfType<Camera>();
+        if(!menuCamera)
+        {
+            GameObject cameraObject=new GameObject("Main Camera");cameraObject.tag="MainCamera";cameraObject.transform.position=new Vector3(0f,0f,-10f);
+            menuCamera=cameraObject.AddComponent<Camera>();menuCamera.orthographic=true;menuCamera.clearFlags=CameraClearFlags.SolidColor;menuCamera.backgroundColor=ParseColor("#101923",Color.black);
+        }
+        if(!FindObjectOfType<AudioListener>())menuCamera.gameObject.AddComponent<AudioListener>();
     }
 
     void CreateImageElement(Transform parent,MenuElementConfig element)
