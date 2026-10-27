@@ -42,6 +42,7 @@ public sealed class LADIDGame : MonoBehaviour
     World secondaryWorld;
     readonly List<FissureData> fissures = new List<FissureData>();
     readonly List<LightZone> lightZones = new List<LightZone>();
+    readonly List<Transform> tsunamiLightSources = new List<Transform>();
     float phaseTime, phaseDuration, survived, flashTime, damageTintTime, cameraShake, health = 100f;
     const int DarknessMaskWidth=192, DarknessMaskHeight=108;
     int stage = 1;
@@ -477,17 +478,21 @@ public sealed class LADIDGame : MonoBehaviour
         float band=Random.Range(1.05f,1.55f);bool left=Random.value>.5f;
         float minX=side<0?-8f:side>0?0f:-8f,maxX=side<0?0f:side>0?8f:8f;
         float x=left?minX-2f:maxX+2f,end=left?maxX+2f:minX-2f;
-        var wave=Rect("Tsunami",new Vector3(x,y,-.3f),2,band*2,new Color(.12f,.75f,.95f,.72f),3);
+        var wave=Rect("Tsunami",new Vector3(x,y,-.3f),2,band*2,new Color(.18f,.88f,1f,.94f),4);
         wave.transform.SetParent(hazardsRoot,true);
+        GameObject glow=Rect("Tsunami glow",new Vector3(x,y,-.29f),4.8f,4.8f,new Color(.12f,.72f,1f,.88f),3);
+        glow.GetComponent<SpriteRenderer>().sprite=Sprites.Glow;glow.transform.SetParent(wave.transform,false);glow.transform.localPosition=Vector3.zero;glow.transform.localScale=new Vector3(2.4f,4.8f/(band*2f),1f);
         banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);EmitBurst(new Vector3(x,y,-.15f),new Color(.25f,.85f,1f),14,2.4f);yield return new WaitForSeconds(1.05f);
         if(!wave||ended||changing||!IsWorldActive(World.Tidal)){if(wave)Destroy(wave);yield break;}banner.gameObject.SetActive(false);
+        tsunamiLightSources.Add(wave.transform);
         bool hit=false;while(wave&&!ended&&!changing&&IsWorldActive(World.Tidal)&&(left?wave.transform.position.x<end:wave.transform.position.x>end))
         {
             float dt=Time.deltaTime;var p=wave.transform.position;p.x+=(left?16:-16)*dt;wave.transform.position=p;
+            float pulse=1f+Mathf.Sin(Time.time*5f)*.08f;glow.transform.localScale=new Vector3(2.4f*pulse,4.8f/(band*2f)*pulse,1f);
             bool touching=Mathf.Abs(player.position.y-y)<band+.34f&&Mathf.Abs(player.position.x-p.x)<1.25f;
             if(touching&&!hit){hit=true;TakeDamage(40f);EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.25f,.85f,1f),12,2f);cameraShake=Mathf.Max(cameraShake,.1f);player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
             yield return null;
-        }if(wave)Destroy(wave);
+        }if(wave)tsunamiLightSources.Remove(wave.transform);if(wave)Destroy(wave);
     }
     void ApplyCoreContactDamage(float dt)
     {
@@ -540,6 +545,12 @@ public sealed class LADIDGame : MonoBehaviour
         for(int i=0;i<darknessPixels.Length;i++)darknessPixels[i]=new Color32(0,0,0,248);
         foreach(LightZone light in lightZones)StampDarknessOpening(light.position,light.radius);
         StampDarknessOpening(player.position,.55f);
+        for(int i=tsunamiLightSources.Count-1;i>=0;i--)
+        {
+            Transform wave=tsunamiLightSources[i];
+            if(!wave){tsunamiLightSources.RemoveAt(i);continue;}
+            StampDarknessOpening(wave.position,2.8f);
+        }
         darknessTexture.SetPixels32(darknessPixels);darknessTexture.Apply(false,false);
     }
     void StampDarknessOpening(Vector2 position,float radius)
@@ -559,7 +570,7 @@ public sealed class LADIDGame : MonoBehaviour
         }
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);if(livesText)livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="";banner.gameObject.SetActive(false);gameOverPanel.gameObject.SetActive(true);}}
-    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
+    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();tsunamiLightSources.Clear();if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
     void Restart(){StopAllCoroutines();ClearHazards();banner.gameObject.SetActive(false);gameOverPanel.gameObject.SetActive(false);health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
@@ -635,5 +646,5 @@ public sealed class LADIDGame : MonoBehaviour
     }
     static Text Label(Transform root,string value,int size,TextAnchor align,Vector2 amin,Vector2 amax,Vector2 pos,Vector2 dim,Color color){var o=new GameObject("Label");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=amin;r.anchorMax=amax;r.pivot=new Vector2(amin.x==amax.x?amin.x:.5f,amin.y==amax.y?amin.y:.5f);r.anchoredPosition=pos;r.sizeDelta=dim;var t=o.AddComponent<Text>();t.text=value;t.font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");t.fontSize=size;t.fontStyle=FontStyle.Bold;t.alignment=align;t.color=color;t.horizontalOverflow=HorizontalWrapMode.Overflow;return t;}
     static Image Panel(Transform root,Vector2 anchor,Vector2 pos,Vector2 size,Color color){var o=new GameObject("Panel");o.transform.SetParent(root,false);var r=o.AddComponent<RectTransform>();r.anchorMin=r.anchorMax=anchor;r.pivot=anchor;r.anchoredPosition=pos;r.sizeDelta=size;var i=o.AddComponent<Image>();i.color=color;return i;}
-    static class Sprites{static Sprite square,circle;public static Sprite Square=>square??(square=Make(false));public static Sprite Circle=>circle??(circle=Make(true));static Sprite Make(bool round){int n=round?64:2;var t=new Texture2D(n,n,TextureFormat.RGBA32,false);t.filterMode=FilterMode.Bilinear;var pixels=new Color[n*n];for(int y=0;y<n;y++)for(int x=0;x<n;x++){float dx=(x+.5f)/n*2-1,dy=(y+.5f)/n*2-1;pixels[y*n+x]=!round||dx*dx+dy*dy<=1?Color.white:Color.clear;}t.SetPixels(pixels);t.Apply();return Sprite.Create(t,new Rect(0,0,n,n),new Vector2(.5f,.5f),n);}}
+    static class Sprites{static Sprite square,circle,glow;public static Sprite Square=>square??(square=Make(false));public static Sprite Circle=>circle??(circle=Make(true));public static Sprite Glow=>glow??(glow=MakeGlow());static Sprite Make(bool round){int n=round?64:2;var t=new Texture2D(n,n,TextureFormat.RGBA32,false);t.filterMode=FilterMode.Bilinear;var pixels=new Color[n*n];for(int y=0;y<n;y++)for(int x=0;x<n;x++){float dx=(x+.5f)/n*2-1,dy=(y+.5f)/n*2-1;pixels[y*n+x]=!round||dx*dx+dy*dy<=1?Color.white:Color.clear;}t.SetPixels(pixels);t.Apply();return Sprite.Create(t,new Rect(0,0,n,n),new Vector2(.5f,.5f),n);}static Sprite MakeGlow(){const int n=128;var t=new Texture2D(n,n,TextureFormat.RGBA32,false);t.filterMode=FilterMode.Bilinear;t.wrapMode=TextureWrapMode.Clamp;var pixels=new Color[n*n];for(int y=0;y<n;y++)for(int x=0;x<n;x++){float dx=(x+.5f)/n*2f-1f,dy=(y+.5f)/n*2f-1f,d=Mathf.Sqrt(dx*dx+dy*dy);float a=Mathf.Pow(Mathf.Clamp01(1f-d),2.35f)*.72f;pixels[y*n+x]=new Color(.08f,.72f,1f,a);}t.SetPixels(pixels);t.Apply();return Sprite.Create(t,new Rect(0,0,n,n),new Vector2(.5f,.5f),n);}}
 }
