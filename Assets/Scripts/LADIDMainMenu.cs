@@ -42,6 +42,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
     static readonly Dictionary<string,Font> FontCache=new Dictionary<string,Font>();
     MenuConfig config;
     readonly Dictionary<string,MenuElementConfig> elements=new Dictionary<string,MenuElementConfig>();
+    readonly Dictionary<string,RectTransform> buttonRects=new Dictionary<string,RectTransform>();
     GameObject settingsRoot;
     Slider volumeSlider;
     Toggle fullscreenToggle;
@@ -56,6 +57,24 @@ public sealed class LADIDMainMenu : MonoBehaviour
         if(!ColorUtility.TryParseHtmlString(config.accentColor,out accent))accent=new Color(.33f,.84f,1f);
         foreach(MenuElementConfig element in config.elements)if(element!=null&&!string.IsNullOrEmpty(element.id))elements[element.id]=element;
         EnsureEventSystem();BuildMenu();
+    }
+
+    bool pendingMenuClick;
+    Vector2 pendingMenuPointer;
+
+    void Update()
+    {
+        if(Input.GetMouseButtonDown(0)){pendingMenuClick=true;pendingMenuPointer=Input.mousePosition;}
+    }
+
+    void LateUpdate()
+    {
+        if(!pendingMenuClick)return;
+        pendingMenuClick=false;
+        string target=settingsRoot&&settingsRoot.activeSelf?"backButton":"settingsButton";
+        if(!buttonRects.TryGetValue(target,out RectTransform rect)||!rect||!rect.gameObject.activeInHierarchy)return;
+        if(!RectTransformUtility.RectangleContainsScreenPoint(rect,pendingMenuPointer,null))return;
+        if(target=="settingsButton")OpenSettings();else CloseSettings();
     }
 
     MenuConfig LoadConfig()
@@ -237,7 +256,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
     void CreateButtonElement(Transform parent,MenuElementConfig element)
     {
         GameObject buttonObject=new GameObject(element.label,typeof(RectTransform),typeof(Image),typeof(Button));buttonObject.transform.SetParent(parent,false);
-        ApplyRect(buttonObject.GetComponent<RectTransform>(),element);Image image=buttonObject.GetComponent<Image>();image.color=GetBackgroundColor(element);
+        ApplyRect(buttonObject.GetComponent<RectTransform>(),element);buttonRects[element.id]=buttonObject.GetComponent<RectTransform>();Image image=buttonObject.GetComponent<Image>();image.color=GetBackgroundColor(element);
         image.raycastTarget=true;
         Button button=buttonObject.GetComponent<Button>();button.enabled=true;button.targetGraphic=image;button.interactable=element.interactable;
         ColorBlock colors=button.colors;colors.normalColor=image.color;colors.highlightedColor=Color.Lerp(image.color,accent,.3f);colors.pressedColor=Color.Lerp(image.color,accent,.55f);colors.selectedColor=colors.highlightedColor;button.colors=colors;
