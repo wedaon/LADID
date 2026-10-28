@@ -60,7 +60,16 @@ public sealed class LADIDMainMenu : MonoBehaviour
             if(element.id.Equals("settingsButton",StringComparison.OrdinalIgnoreCase)){element.type="button";element.group="main";element.visible=true;element.interactable=true;}
             elements[element.id]=element;
         }
+        FitVolumeLabelToSettingsPanel();
         EnsureEventSystem();BuildMenu();
+    }
+
+    void FitVolumeLabelToSettingsPanel()
+    {
+        if(!elements.TryGetValue("settingsPanel",out MenuElementConfig panel)||!elements.TryGetValue("volumeLabel",out MenuElementConfig label))return;
+        float inset=2f;label.width=Mathf.Min(label.width,Mathf.Max(1f,panel.width-inset*2f));
+        float minX=panel.x-panel.width*.5f+inset+label.width*.5f,maxX=panel.x+panel.width*.5f-inset-label.width*.5f;
+        label.x=Mathf.Clamp(label.x,minX,maxX);
     }
 
     bool pendingMenuClick;
@@ -175,7 +184,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
             E("settingsPanel","설정 패널","image","settings","",50,50,43.75f,52.8f,1,bg:"#131C29",alpha:1),
             E("settingsAccent","설정 패널 상단선","image","settings","",50,24,43.75f,.42f,2,useAccent:true,alpha:1),
             E("settingsTitle","설정 제목","text","settings","설정",50,31.7f,35.9f,7.6f,3,34,"Malgun Gothic"),
-            E("volumeLabel","볼륨 설명","text","settings","마스터 볼륨",38.3f,43.5f,21.1f,4.2f,3,18,"Malgun Gothic",align:"Left",color:"#D4E3EF"),
+            E("volumeLabel","볼륨 설명","text","settings","마스터 볼륨",40.7f,43.5f,21.1f,4.2f,3,18,"Malgun Gothic",align:"Left",color:"#D4E3EF"),
             E("volumeSlider","볼륨 슬라이더","slider","settings","",52.7f,49.3f,19.5f,2.22f,4,bg:"#212F3D",alpha:1,click:true),
             E("volumeSliderFill","볼륨 슬라이더 채움","sliderFill","settings","",0,50,100,42,5,useAccent:true,alpha:.72f,parent:"volumeSlider"),
             E("volumeSliderHandle","볼륨 슬라이더 손잡이","sliderHandle","settings","",100,50,9.6f,145,6,bg:"#FFFFFF",alpha:1,parent:"volumeSlider"),
