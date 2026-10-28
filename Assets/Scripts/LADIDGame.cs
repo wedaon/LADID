@@ -419,7 +419,7 @@ public sealed class LADIDGame : MonoBehaviour
     }
     void UpdateTyphoon(float dt,ref Vector2 playerPosition)
     {
-        if(changing||!typhoon||!typhoon.root||!IsWorldActive(World.Typhoon))return;
+        if(changing||typhoon==null||!typhoon.root||!IsWorldActive(World.Typhoon))return;
         typhoon.retargetTime-=dt;
         if(typhoon.retargetTime<=0f)
         {
