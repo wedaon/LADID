@@ -38,6 +38,9 @@ public sealed class LADIDGame : MonoBehaviour
     int mapEdgeColorStart;
     SpriteRenderer playerRenderer;
     SpriteRenderer playerAura;
+    AudioSource sfxAudioSource, ambienceAudioSource;
+    readonly Dictionary<string,AudioClip> audioClips=new Dictionary<string,AudioClip>();
+    readonly Dictionary<string,float> audioCooldowns=new Dictionary<string,float>();
     Color playerColor = new Color(.88f,.96f,1f);
     Camera cam;
     ParticleSystem atmosphere;
@@ -66,6 +69,7 @@ public sealed class LADIDGame : MonoBehaviour
         hazardsRoot = new GameObject("Dimension Hazards").transform;
         cam = new GameObject("Camera").AddComponent<Camera>();
         cam.orthographic = true; cam.orthographicSize = 6.5f; cam.transform.position = new Vector3(0,0,-10);
+        BuildAudio();
         cam.backgroundColor = new Color(.12f,.09f,.1f);
         BuildMapVisual();
         BuildSplitVisual();
@@ -246,6 +250,7 @@ public sealed class LADIDGame : MonoBehaviour
     IEnumerator TransitionDimension()
     {
         changing=true;ClearHazards();banner.gameObject.SetActive(false);
+        PlaySound("dimension-shatter",.82f);
         const float duration=1.8f,swapAt=.52f;
         shatterGlow.rectTransform.localScale=Vector3.one*.12f;shatterGlow.color=new Color(.52f,.82f,1f,0);shatterGlow.gameObject.SetActive(true);
         shatter.rectTransform.localScale=Vector3.one*.08f;shatter.rectTransform.localRotation=Quaternion.identity;shatter.color=new Color(.8f,.94f,1f,0);shatter.gameObject.SetActive(true);
@@ -339,6 +344,30 @@ public sealed class LADIDGame : MonoBehaviour
         fade.color=new ParticleSystem.MinMaxGradient(gradient);
         var particleRenderer=particles.GetComponent<ParticleSystemRenderer>();particleRenderer.renderMode=ParticleSystemRenderMode.Billboard;particleRenderer.sortingOrder=2;
     }
+    void BuildAudio()
+    {
+        if(!FindObjectOfType<AudioListener>())cam.gameObject.AddComponent<AudioListener>();
+        sfxAudioSource=cam.gameObject.AddComponent<AudioSource>();sfxAudioSource.playOnAwake=false;sfxAudioSource.loop=false;sfxAudioSource.spatialBlend=0f;
+        ambienceAudioSource=cam.gameObject.AddComponent<AudioSource>();ambienceAudioSource.playOnAwake=false;ambienceAudioSource.loop=true;ambienceAudioSource.spatialBlend=0f;ambienceAudioSource.volume=.2f;
+        LoadSound("arcade-warning");LoadSound("volcano-impact");LoadSound("tsunami-surge");LoadSound("earthquake-impact");
+        LoadSound("acid-hit");LoadSound("darkness-hit");LoadSound("typhoon-loop");LoadSound("dimension-shatter");
+    }
+    void LoadSound(string soundName){AudioClip clip=Resources.Load<AudioClip>("LADIDAudio/"+soundName);if(clip)clip.LoadAudioData();audioClips[soundName]=clip;}
+    void PlaySound(string soundName,float volume=1f,float cooldown=0f)
+    {
+        if(!sfxAudioSource||!audioClips.TryGetValue(soundName,out AudioClip clip)||!clip)return;
+        float now=Time.unscaledTime;
+        if(cooldown>0f&&audioCooldowns.TryGetValue(soundName,out float previous)&&now-previous<cooldown)return;
+        audioCooldowns[soundName]=now;sfxAudioSource.PlayOneShot(clip,volume);
+    }
+    void ConfigureWorldAudio()
+    {
+        if(!ambienceAudioSource)return;
+        AudioClip desired=IsWorldActive(World.Typhoon)?audioClips["typhoon-loop"]:null;
+        if(ambienceAudioSource.clip==desired)return;
+        ambienceAudioSource.Stop();ambienceAudioSource.clip=desired;
+        if(desired)ambienceAudioSource.Play();
+    }
     void ConfigureAtmosphere()
     {
         atmosphere.Clear(true);var main=atmosphere.main;Color first=WorldAccentColor(world),second=overlapMode?WorldAccentColor(secondaryWorld):first;
@@ -388,6 +417,7 @@ public sealed class LADIDGame : MonoBehaviour
         if(darknessActive)CreateDarknessLights();
         if(IsWorldActive(World.Typhoon))CreateTyphoon();
         ConfigureAtmosphere();
+        ConfigureWorldAudio();
         splitVisualRoot.gameObject.SetActive(overlapMode);
         Color auraTint=WorldAccentColor(world);auraTint.a=.16f;playerAura.color=auraTint;
         if(overlapMode)
@@ -462,11 +492,12 @@ public sealed class LADIDGame : MonoBehaviour
     IEnumerator Meteor(Vector2 at)
     {
         float impactSize=Random.Range(1.2f,3.6f);
+        PlaySound("arcade-warning",.3f,.3f);
         GameObject warn=Disc("Impact warning",at,impactSize,new Color(1,.12f,.04f,.4f),2);
         SpriteRenderer warningRenderer=warn.GetComponent<SpriteRenderer>();float t=0;while(t<1.05f){if(!warn||ended||changing||!IsWorldActive(World.Volcano)){if(warn)Destroy(warn);yield break;}t+=Time.deltaTime;Color warningColor=warningRenderer.color;warningColor.a=.24f+Mathf.PingPong(Time.time*1.8f,.28f);warningRenderer.color=warningColor;yield return null;}
         if(!warn||ended||changing||!IsWorldActive(World.Volcano))yield break;
-        Destroy(warn);GameObject hit=Disc("Meteor impact",at,impactSize,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,impactSize*.5f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));EmitBurst(new Vector3(at.x,at.y,-.1f),new Color(1,.38f,.08f),18,3.2f);cameraShake=Mathf.Max(cameraShake,.13f);
-        if(Vector2.Distance(player.position,at)<impactSize*.5f+.25f)TakeDamage(30f);yield return new WaitForSeconds(.28f);Destroy(hit);
+        Destroy(warn);PlaySound("volcano-impact",.48f,.07f);GameObject hit=Disc("Meteor impact",at,impactSize,new Color(1,.28f,.06f),3);GameObject core=Disc("Impact core",at,impactSize*.5f,new Color(1,.78f,.25f),4);StartCoroutine(ShrinkCore(core,10f));EmitBurst(new Vector3(at.x,at.y,-.1f),new Color(1,.38f,.08f),18,3.2f);cameraShake=Mathf.Max(cameraShake,.13f);
+        if(Vector2.Distance(player.position,at)<impactSize*.5f+.25f)TakeDamage(30f,"volcano-impact");yield return new WaitForSeconds(.28f);Destroy(hit);
     }
     IEnumerator ShrinkCore(GameObject core,float duration)
     {
@@ -492,13 +523,14 @@ public sealed class LADIDGame : MonoBehaviour
         while(drop&&!ended&&!changing&&IsWorldActive(World.AcidRain)&&drop.transform.position.y> -5.6f)
         {
             Vector3 position=drop.transform.position;position.y-=speed*Time.deltaTime;drop.transform.position=position;
-            if(Mathf.Abs(player.position.x-position.x)<.34f&&Mathf.Abs(player.position.y-position.y)<.38f){TakeDamage(5f);EmitBurst(position,new Color(.65f,1f,.12f),5,1.2f);Destroy(drop);yield break;}
+            if(Mathf.Abs(player.position.x-position.x)<.34f&&Mathf.Abs(player.position.y-position.y)<.38f){TakeDamage(5f,"acid-hit");EmitBurst(position,new Color(.65f,1f,.12f),5,1.2f);Destroy(drop);yield break;}
             yield return null;
         }
         if(drop)Destroy(drop);
     }
     IEnumerator Fissure(int side)
     {
+        PlaySound("arcade-warning",.2f,.3f);
         List<Vector2> path=BuildFissurePath(side,Random.value>.5f);
         GameObject crack=new GameObject("Fissure warning");crack.transform.SetParent(hazardsRoot,false);
         for(int i=0;i<path.Count-1;i++)
@@ -509,6 +541,7 @@ public sealed class LADIDGame : MonoBehaviour
         }
         yield return new WaitForSeconds(1.1f);
         if(!crack||ended||changing||!IsWorldActive(World.Earthquake)){if(crack)Destroy(crack);yield break;}
+        PlaySound("earthquake-impact",.42f,.12f);
         crack.name="Ground fissure";foreach(SpriteRenderer segmentRenderer in crack.GetComponentsInChildren<SpriteRenderer>())segmentRenderer.color=new Color(.035f,.025f,.02f,1f);
         for(int i=1;i<path.Count;i+=3)EmitBurst(new Vector3(path[i].x,path[i].y,-.15f),new Color(.72f,.38f,.15f),3,.8f);
         FissureData data=new FissureData{path=path,side=side};fissures.Add(data);
@@ -547,7 +580,7 @@ public sealed class LADIDGame : MonoBehaviour
             bool insideSide=fissure.side==0||(fissure.side<0?player.position.x<0f:player.position.x>=0f);bool overGap=false;
             if(insideSide)for(int i=0;i<fissure.path.Count-1;i++)if(Vector2.Distance(player.position,ClosestPointOnSegment(player.position,fissure.path[i],fissure.path[i+1]))<.47f){overGap=true;break;}
             if(!overGap)continue;
-            fissure.triggered=true;falling=true;TakeDamage(20f);EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.78f,.46f,.2f),10,1.6f);cameraShake=Mathf.Max(cameraShake,.07f);StartCoroutine(FallAndRecover(fissure));break;
+            fissure.triggered=true;falling=true;TakeDamage(20f,"earthquake-impact");EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.78f,.46f,.2f),10,1.6f);cameraShake=Mathf.Max(cameraShake,.07f);StartCoroutine(FallAndRecover(fissure));break;
         }
     }
     static Vector2 ClosestPointOnSegment(Vector2 point,Vector2 start,Vector2 end)
@@ -581,7 +614,7 @@ public sealed class LADIDGame : MonoBehaviour
         wave.transform.SetParent(hazardsRoot,true);
         GameObject glow=Rect("Tsunami glow",new Vector3(x,y,-.29f),4.8f,4.8f,new Color(.12f,.72f,1f,.88f),3);
         glow.GetComponent<SpriteRenderer>().sprite=Sprites.Glow;glow.transform.SetParent(wave.transform,false);glow.transform.localPosition=Vector3.zero;glow.transform.localScale=new Vector3(2.4f,4.8f/(band*2f),1f);
-        banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);EmitBurst(new Vector3(x,y,-.15f),new Color(.25f,.85f,1f),14,2.4f);yield return new WaitForSeconds(1.05f);
+        banner.color=new Color(.02f,.26f,.4f,.92f);banner.GetComponentInChildren<Text>().text=left?"WAVE INCOMING  →":"←  WAVE INCOMING";banner.gameObject.SetActive(true);PlaySound("tsunami-surge",.42f,.35f);EmitBurst(new Vector3(x,y,-.15f),new Color(.25f,.85f,1f),14,2.4f);yield return new WaitForSeconds(1.05f);
         if(!wave||ended||changing||!IsWorldActive(World.Tidal)){if(wave)Destroy(wave);yield break;}banner.gameObject.SetActive(false);
         tsunamiLightSources.Add(wave.transform);
         bool hit=false;while(wave&&!ended&&!changing&&IsWorldActive(World.Tidal)&&(left?wave.transform.position.x<end:wave.transform.position.x>end))
@@ -589,7 +622,7 @@ public sealed class LADIDGame : MonoBehaviour
             float dt=Time.deltaTime;var p=wave.transform.position;p.x+=(left?16:-16)*dt;wave.transform.position=p;
             float pulse=1f+Mathf.Sin(Time.time*5f)*.08f;glow.transform.localScale=new Vector3(2.4f*pulse,4.8f/(band*2f)*pulse,1f);
             bool touching=Mathf.Abs(player.position.y-y)<band+.34f&&Mathf.Abs(player.position.x-p.x)<1.25f;
-            if(touching&&!hit){hit=true;TakeDamage(40f);EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.25f,.85f,1f),12,2f);cameraShake=Mathf.Max(cameraShake,.1f);player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
+            if(touching&&!hit){hit=true;TakeDamage(40f,"earthquake-impact");EmitBurst(new Vector3(player.position.x,player.position.y,-.1f),new Color(.25f,.85f,1f),12,2f);cameraShake=Mathf.Max(cameraShake,.1f);player.position=new Vector3(player.position.x,Mathf.Clamp(y+(player.position.y<y?-1:1)*(band+.7f),-4.6f,4.6f),0);}
             yield return null;
         }if(wave)tsunamiLightSources.Remove(wave.transform);if(wave)Destroy(wave);
     }
@@ -599,11 +632,12 @@ public sealed class LADIDGame : MonoBehaviour
         {
             Transform hazard=hazardsRoot.GetChild(i);
             float contactRadius=(hazard.localScale.x+.52f)*.5f;
-            if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<contactRadius)TakeDamage(10f*dt);
+            if(hazard.name=="Impact core"&&Vector2.Distance(player.position,hazard.position)<contactRadius)TakeDamage(10f*dt,"volcano-impact");
         }
     }
     void CreateDarknessLights()
     {
+        PlaySound("darkness-hit",.22f,.3f);
         lightZones.Clear();int count=Mathf.Max(1,9-stage);float radius=2.15f;
         for(int i=0;i<count;i++)
         {
@@ -637,7 +671,7 @@ public sealed class LADIDGame : MonoBehaviour
     void ApplyDarknessDamage(float dt)
     {
         foreach(LightZone light in lightZones)if(Vector2.Distance(player.position,light.position)<light.radius)return;
-        TakeDamage(5f*dt);
+        TakeDamage(5f*dt,"darkness-hit");
     }
     void UpdateDarknessMask()
     {
@@ -668,7 +702,7 @@ public sealed class LADIDGame : MonoBehaviour
             if(alpha<darknessPixels[index].a)darknessPixels[index]=new Color32(0,0,0,alpha);
         }
     }
-    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);if(livesText)livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="";banner.gameObject.SetActive(false);gameOverRoot.SetActive(true);}}
+    void TakeDamage(float amount,string soundName="earthquake-impact"){if(ended)return;health=Mathf.Max(0,health-amount);PlaySound(soundName,.42f,.24f);if(livesText)livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;if(ambienceAudioSource){ambienceAudioSource.Stop();ambienceAudioSource.clip=null;}messageText.text="";banner.gameObject.SetActive(false);gameOverRoot.SetActive(true);}}
     void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();tsunamiLightSources.Clear();typhoon=null;if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
     void Restart(){StopAllCoroutines();ClearHazards();banner.gameObject.SetActive(false);gameOverRoot.SetActive(false);health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,6);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}

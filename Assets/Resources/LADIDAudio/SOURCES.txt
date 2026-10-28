@@ -1,0 +1,19 @@
+LADID arcade sound effects
+
+Kenney - Sci-Fi Sounds (CC0 1.0)
+Source: https://opengameart.org/content/sci-fi-sounds
+Official pack: https://kenney.nl/assets/sci-fi-sounds
+The original License.txt is included in this folder.
+
+Included files copied from the pack:
+- arcade-warning.ogg (laserRetro_000.ogg)
+- volcano-impact.ogg (explosionCrunch_001.ogg)
+- tsunami-surge.ogg (spaceEngineLarge_000.ogg)
+- earthquake-impact.ogg (impactMetal_002.ogg)
+- acid-hit.ogg (slime_001.ogg)
+- darkness-hit.ogg (forceField_000.ogg)
+- typhoon-loop.ogg (engineCircular_000.ogg)
+
+Glass Break by Till Behrend (CC0)
+Source: https://opengameart.org/content/glass-break
+Included file: dimension-shatter.wav (glass_breaking.wav)
