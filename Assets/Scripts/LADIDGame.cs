@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -36,6 +37,8 @@ public sealed class LADIDGame : MonoBehaviour
     ParticleSystem atmosphere;
     Text worldText, timerText, livesText, messageText, stageText;
     Image banner, gameOverPanel, flash, shatter, shatterGlow, shatterFlash, darknessOverlay;
+    GameObject gameOverRoot;
+    readonly Dictionary<string,LADIDMainMenu.MenuElementConfig> gameOverTexts=new Dictionary<string,LADIDMainMenu.MenuElementConfig>();
     Texture2D darknessTexture;
     Color32[] darknessPixels;
     World world;
@@ -51,6 +54,7 @@ public sealed class LADIDGame : MonoBehaviour
     void Start()
     {
         Application.targetFrameRate = 60;
+        LoadGameOverTextConfig();
         hazardsRoot = new GameObject("Dimension Hazards").transform;
         cam = new GameObject("Camera").AddComponent<Camera>();
         cam.orthographic = true; cam.orthographicSize = 6.5f; cam.transform.position = new Vector3(0,0,-10);
@@ -145,11 +149,16 @@ public sealed class LADIDGame : MonoBehaviour
         messageText=Label(c.transform,"",16,TextAnchor.MiddleCenter,new Vector2(.5f,0),new Vector2(.5f,0),new Vector2(0,22),new Vector2(900,44),Color.white);
         banner=Panel(c.transform,new Vector2(.5f,.5f),Vector2.zero,new Vector2(560,100),new Color(.4f,.1f,.07f,.94f));
         Label(banner.transform,"",26,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);
-        gameOverPanel=Panel(c.transform,new Vector2(.5f,.5f),Vector2.zero,new Vector2(560,250),new Color(.04f,.07f,.11f,.97f));
-        Label(gameOverPanel.transform,"GAME OVER",38,TextAnchor.MiddleCenter,new Vector2(.5f,1f),new Vector2(.5f,1f),new Vector2(0,-48),new Vector2(520,58),Color.white);
-        Label(gameOverPanel.transform,"차원에서 버텼습니다. 다시 도전하거나 메인 메뉴로 돌아가세요.",15,TextAnchor.MiddleCenter,new Vector2(.5f,1f),new Vector2(.5f,1f),new Vector2(0,-105),new Vector2(520,34),new Color(.72f,.82f,.9f));
-        CreateGameOverButton(gameOverPanel.transform,"다시 시작",new Vector2(-115,-75),Restart);
-        CreateGameOverButton(gameOverPanel.transform,"메인 메뉴",new Vector2(115,-75),ReturnToMainMenu);
+        gameOverRoot=new GameObject("Game Over Group",typeof(RectTransform));gameOverRoot.transform.SetParent(c.transform,false);
+        RectTransform gameOverRect=gameOverRoot.GetComponent<RectTransform>();gameOverRect.anchorMin=Vector2.zero;gameOverRect.anchorMax=Vector2.one;gameOverRect.offsetMin=gameOverRect.offsetMax=Vector2.zero;gameOverRect.pivot=new Vector2(.5f,.5f);
+        Image gameOverDim=Panel(gameOverRoot.transform,Vector2.zero,Vector2.zero,Vector2.zero,new Color(.01f,.025f,.04f,.84f));gameOverDim.rectTransform.anchorMax=Vector2.one;gameOverDim.rectTransform.offsetMin=Vector2.zero;gameOverDim.rectTransform.offsetMax=Vector2.zero;gameOverDim.raycastTarget=false;
+        gameOverPanel=Panel(gameOverRoot.transform,new Vector2(.5f,.5f),Vector2.zero,new Vector2(560,250),new Color(.04f,.07f,.11f,.97f));
+        CreateGameOverButton(gameOverRoot.transform,"다시 시작",new Vector2(-115,-75),Restart);
+        CreateGameOverButton(gameOverRoot.transform,"메인 메뉴",new Vector2(115,-75),ReturnToMainMenu);
+        CreateGameOverText(gameOverRoot.transform,"gameOverTitle","GAME OVER",50f,39.3f,40.6f,8.1f,38,Color.white,TextAnchor.MiddleCenter);
+        CreateGameOverText(gameOverRoot.transform,"gameOverSubtitle","차원에서 버텼습니다. 다시 도전하거나 메인 메뉴로 돌아가세요.",50f,47.2f,40.6f,4.7f,15,new Color(.72f,.82f,.9f),TextAnchor.MiddleCenter);
+        CreateGameOverText(gameOverRoot.transform,"gameOverRestartText","다시 시작",41f,60.4f,16f,7.2f,19,Color.white,TextAnchor.MiddleCenter);
+        CreateGameOverText(gameOverRoot.transform,"gameOverMenuText","메인 메뉴",59f,60.4f,16f,7.2f,19,Color.white,TextAnchor.MiddleCenter);
         flash=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,new Color(1,.1f,.1f,0));
         flash.raycastTarget=false;
         flash.rectTransform.anchorMax=Vector2.one; flash.rectTransform.offsetMin=Vector2.zero; flash.rectTransform.offsetMax=Vector2.zero;
@@ -169,7 +178,7 @@ public sealed class LADIDGame : MonoBehaviour
         darknessOverlay=Panel(c.transform,Vector2.zero,Vector2.zero,Vector2.zero,Color.white);
         darknessOverlay.rectTransform.anchorMax=Vector2.one;darknessOverlay.rectTransform.offsetMin=Vector2.zero;darknessOverlay.rectTransform.offsetMax=Vector2.zero;
         darknessOverlay.sprite=Sprite.Create(darknessTexture,new Rect(0,0,DarknessMaskWidth,DarknessMaskHeight),new Vector2(.5f,.5f),100f);darknessOverlay.type=Image.Type.Simple;darknessOverlay.raycastTarget=false;
-        banner.gameObject.SetActive(false);gameOverPanel.gameObject.SetActive(false);darknessOverlay.transform.SetAsFirstSibling();darknessOverlay.gameObject.SetActive(false);
+        banner.gameObject.SetActive(false);gameOverRoot.SetActive(false);darknessOverlay.transform.SetAsFirstSibling();darknessOverlay.gameObject.SetActive(false);
         flash.transform.SetAsLastSibling();shatterGlow.transform.SetAsLastSibling();shatter.transform.SetAsLastSibling();shatterFlash.transform.SetAsLastSibling();
         shatterGlow.gameObject.SetActive(false);shatter.gameObject.SetActive(false);shatterFlash.gameObject.SetActive(false);
     }
@@ -180,6 +189,30 @@ public sealed class LADIDGame : MonoBehaviour
         var eventSystem=new GameObject("EventSystem",typeof(EventSystem),typeof(StandaloneInputModule));DontDestroyOnLoad(eventSystem);
     }
 
+    void LoadGameOverTextConfig()
+    {
+        string path=Path.Combine(Application.streamingAssetsPath,"main-menu.json");if(!File.Exists(path))return;
+        try
+        {
+            LADIDMainMenu.MenuConfig menu=JsonUtility.FromJson<LADIDMainMenu.MenuConfig>(File.ReadAllText(path));
+            if(menu?.elements==null)return;
+            foreach(LADIDMainMenu.MenuElementConfig element in menu.elements)
+                if(element!=null&&element.group=="gameover"&&element.type=="text"&&!string.IsNullOrEmpty(element.id))gameOverTexts[element.id]=element;
+        }
+        catch(System.Exception exception){Debug.LogWarning("Could not read game over text settings. "+exception.Message);}
+    }
+
+    Text CreateGameOverText(Transform parent,string id,string fallback,float x,float y,float width,float height,int fontSize,Color color,TextAnchor alignment)
+    {
+        gameOverTexts.TryGetValue(id,out LADIDMainMenu.MenuElementConfig element);
+        if(element==null)element=new LADIDMainMenu.MenuElementConfig{id=id,text=fallback,x=x,y=y,width=width,height=height,fontSize=fontSize,fontFamily="Malgun Gothic",fontStyle="Bold",textColor=ColorUtility.ToHtmlStringRGBA(color),alignment="Center",verticalAlignment="Middle"};
+        var labelObject=new GameObject(element.label,typeof(RectTransform),typeof(CanvasRenderer),typeof(Text));labelObject.transform.SetParent(parent,false);
+        Text text=labelObject.GetComponent<Text>();LADIDMainMenu.ApplyRect(text.rectTransform,element);text.text=string.IsNullOrEmpty(element.text)?fallback:element.text;
+        text.font=LADIDMainMenu.GetFont(element.fontFamily);text.fontSize=Mathf.Clamp(element.fontSize,8,120);text.fontStyle=LADIDMainMenu.ParseFontStyle(element.fontStyle);
+        text.color=LADIDMainMenu.ParseColor(element.textColor,color);text.alignment=LADIDMainMenu.ParseAlignment(element.alignment,element.verticalAlignment);
+        text.horizontalOverflow=HorizontalWrapMode.Overflow;text.verticalOverflow=VerticalWrapMode.Overflow;text.raycastTarget=false;labelObject.SetActive(element.visible);return text;
+    }
+
     void CreateGameOverButton(Transform parent,string label,Vector2 position,System.Action action)
     {
         var buttonObject=new GameObject(label+" Button",typeof(RectTransform),typeof(Image),typeof(Button));buttonObject.transform.SetParent(parent,false);
@@ -187,7 +220,6 @@ public sealed class LADIDGame : MonoBehaviour
         var image=buttonObject.GetComponent<Image>();image.color=label=="메인 메뉴"?new Color(.1f,.22f,.3f,1):new Color(.45f,.14f,.12f,1);
         var button=buttonObject.GetComponent<Button>();button.targetGraphic=image;button.onClick.AddListener(()=>action());
         var colors=button.colors;colors.highlightedColor=Color.Lerp(image.color,Color.white,.18f);colors.pressedColor=Color.Lerp(image.color,Color.white,.32f);button.colors=colors;
-        Text text=Label(buttonObject.transform,label,19,TextAnchor.MiddleCenter,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero,Color.white);text.raycastTarget=false;
     }
 
     void ReturnToMainMenu(){SceneManager.LoadScene("MainMenu");}
@@ -569,9 +601,9 @@ public sealed class LADIDGame : MonoBehaviour
             if(alpha<darknessPixels[index].a)darknessPixels[index]=new Color32(0,0,0,alpha);
         }
     }
-    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);if(livesText)livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="";banner.gameObject.SetActive(false);gameOverPanel.gameObject.SetActive(true);}}
+    void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);if(livesText)livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="";banner.gameObject.SetActive(false);gameOverRoot.SetActive(true);}}
     void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();tsunamiLightSources.Clear();if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
-    void Restart(){StopAllCoroutines();ClearHazards();banner.gameObject.SetActive(false);gameOverPanel.gameObject.SetActive(false);health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
+    void Restart(){StopAllCoroutines();ClearHazards();banner.gameObject.SetActive(false);gameOverRoot.SetActive(false);health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Sprite CreateTransitionGlowSprite()

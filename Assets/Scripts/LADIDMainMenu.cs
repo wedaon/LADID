@@ -226,6 +226,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
 
         foreach(MenuElementConfig element in config.elements.Where(item=>item!=null).OrderBy(item=>item.group=="settings"?1:0).ThenBy(item=>item.layer))
         {
+            if(element.group=="gameover")continue;
             Transform parent=element.group=="settings"?settingsRoot.transform:canvas.transform;
             if(element.type=="image")CreateImageElement(parent,element);
             else if(element.type=="text")CreateTextElement(parent,element);
@@ -349,29 +350,29 @@ public sealed class LADIDMainMenu : MonoBehaviour
 #endif
     }
 
-    static Color ParseColor(string value,Color fallback)
+    public static Color ParseColor(string value,Color fallback)
     {
         if(ColorUtility.TryParseHtmlString(value,out Color parsed))return parsed;
         return fallback;
     }
-    static Font GetFont(string family)
+    public static Font GetFont(string family)
     {
         if(string.IsNullOrWhiteSpace(family))family="Arial";
         if(FontCache.TryGetValue(family,out Font cached)&&cached)return cached;
         Font font=null;try{font=Font.CreateDynamicFontFromOSFont(family,32);}catch(Exception){ }
         if(!font)font=Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");FontCache[family]=font;return font;
     }
-    static FontStyle ParseFontStyle(string value)
+    public static FontStyle ParseFontStyle(string value)
     {
         if(value=="Italic")return FontStyle.Italic;if(value=="BoldAndItalic")return FontStyle.BoldAndItalic;if(value=="Normal")return FontStyle.Normal;return FontStyle.Bold;
     }
-    static TextAnchor ParseAlignment(string horizontal,string vertical)
+    public static TextAnchor ParseAlignment(string horizontal,string vertical)
     {
         if(vertical=="Top")return horizontal=="Left"?TextAnchor.UpperLeft:horizontal=="Right"?TextAnchor.UpperRight:TextAnchor.UpperCenter;
         if(vertical=="Bottom")return horizontal=="Left"?TextAnchor.LowerLeft:horizontal=="Right"?TextAnchor.LowerRight:TextAnchor.LowerCenter;
         return horizontal=="Left"?TextAnchor.MiddleLeft:horizontal=="Right"?TextAnchor.MiddleRight:TextAnchor.MiddleCenter;
     }
-    static void ApplyRect(RectTransform rect,MenuElementConfig element)
+    public static void ApplyRect(RectTransform rect,MenuElementConfig element)
     {
         Vector2 anchor=new Vector2(Mathf.Clamp01(element.x*.01f),1f-Mathf.Clamp01(element.y*.01f));rect.anchorMin=rect.anchorMax=anchor;rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=Vector2.zero;rect.sizeDelta=new Vector2(element.width*12.8f,element.height*7.2f);
     }
