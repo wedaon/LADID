@@ -9,7 +9,7 @@ using UnityEngine.UI;
 public sealed class LADIDGame : MonoBehaviour
 {
     const float W = 8f, H = 5f;
-    enum World { Volcano, Tidal, Earthquake, AcidRain, Darkness }
+    enum World { Volcano, Tidal, Earthquake, AcidRain, Darkness, Typhoon }
     sealed class FissureData
     {
         public bool triggered;
@@ -23,6 +23,12 @@ public sealed class LADIDGame : MonoBehaviour
         public float radius;
         public float moveSpeed, retargetTime;
         public GameObject glow, source;
+    }
+    sealed class TyphoonData
+    {
+        public Transform root, vortex;
+        public Vector2 target;
+        public float retargetTime;
     }
     Transform player;
     Transform hazardsRoot;
@@ -46,6 +52,8 @@ public sealed class LADIDGame : MonoBehaviour
     readonly List<FissureData> fissures = new List<FissureData>();
     readonly List<LightZone> lightZones = new List<LightZone>();
     readonly List<Transform> tsunamiLightSources = new List<Transform>();
+    TyphoonData typhoon;
+    static Sprite typhoonVortexSprite;
     float phaseTime, phaseDuration, survived, flashTime, damageTintTime, cameraShake, health = 100f;
     const int DarknessMaskWidth=192, DarknessMaskHeight=108;
     int stage = 1;
@@ -67,7 +75,7 @@ public sealed class LADIDGame : MonoBehaviour
         GameObject aura=new GameObject("Player aura");aura.transform.SetParent(player,false);aura.transform.localScale=Vector3.one*3.4f;
         playerAura=aura.AddComponent<SpriteRenderer>();playerAura.sprite=Sprites.Circle;playerAura.color=new Color(.25f,.78f,1f,.18f);playerAura.sortingOrder=4;
         BuildHud();
-        world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);
+        world=(World)Random.Range(0,6);secondaryWorld=world;SetWorld(world,true);
         StartCoroutine(PhaseLoop()); StartCoroutine(VolcanoLoop()); StartCoroutine(TideLoop()); StartCoroutine(EarthquakeLoop()); StartCoroutine(AcidRainLoop());
     }
 
@@ -77,7 +85,9 @@ public sealed class LADIDGame : MonoBehaviour
         float dt=Time.deltaTime; survived+=dt; phaseTime-=dt;
         Vector2 v=new Vector2(Input.GetAxisRaw("Horizontal"),Input.GetAxisRaw("Vertical"));
         if(v.sqrMagnitude>1) v.Normalize();
-        Vector3 p=player.position+(Vector3)(v*7f*dt); p.x=Mathf.Clamp(p.x,-7.65f,7.65f); p.y=Mathf.Clamp(p.y,-4.65f,4.65f); player.position=p;
+        Vector2 playerPosition=(Vector2)player.position+v*7f*dt;
+        UpdateTyphoon(dt,ref playerPosition);
+        playerPosition.x=Mathf.Clamp(playerPosition.x,-7.65f,7.65f);playerPosition.y=Mathf.Clamp(playerPosition.y,-4.65f,4.65f);player.position=playerPosition;
         timerText.text="NEXT COLLAPSE  "+Mathf.CeilToInt(phaseTime).ToString("00")+"s";
         stageText.text="STAGE  "+stage.ToString("00");
         ApplyCoreContactDamage(dt);
@@ -271,8 +281,8 @@ public sealed class LADIDGame : MonoBehaviour
         shatter.gameObject.SetActive(false);shatterGlow.gameObject.SetActive(false);shatterFlash.gameObject.SetActive(false);
         changing=false;
     }
-    World RandomWorld(){World next=world;while(next==world)next=(World)Random.Range(0,5);return next;}
-    World RandomWorldExcept(World excluded){World next=excluded;while(next==excluded)next=(World)Random.Range(0,5);return next;}
+    World RandomWorld(){World next=world;while(next==world)next=(World)Random.Range(0,6);return next;}
+    World RandomWorldExcept(World excluded){World next=excluded;while(next==excluded)next=(World)Random.Range(0,6);return next;}
     bool IsWorldActive(World candidate){return world==candidate||(overlapMode&&secondaryWorld==candidate);}
     Vector2 RandomWorldPosition(float minX,float maxX,float minY,float maxY)
     {
@@ -284,7 +294,8 @@ public sealed class LADIDGame : MonoBehaviour
         if(dimension==World.Tidal)return "TIDAL";
         if(dimension==World.Earthquake)return "EARTHQUAKE";
         if(dimension==World.AcidRain)return "ACID RAIN";
-        return "DARKNESS";
+        if(dimension==World.Darkness)return "DARKNESS";
+        return "TYPHOON";
     }
     Color WorldFieldColor(World dimension)
     {
@@ -292,7 +303,8 @@ public sealed class LADIDGame : MonoBehaviour
         if(dimension==World.Tidal)return new Color(.07f,.25f,.32f);
         if(dimension==World.Earthquake)return new Color(.3f,.22f,.14f);
         if(dimension==World.AcidRain)return new Color(.13f,.28f,.1f);
-        return new Color(.025f,.03f,.065f);
+        if(dimension==World.Darkness)return new Color(.025f,.03f,.065f);
+        return new Color(.07f,.18f,.24f);
     }
     Color WorldAccentColor(World dimension)
     {
@@ -300,7 +312,8 @@ public sealed class LADIDGame : MonoBehaviour
         if(dimension==World.Tidal)return new Color(.2f,.82f,1f,.95f);
         if(dimension==World.Earthquake)return new Color(1f,.62f,.25f,.95f);
         if(dimension==World.AcidRain)return new Color(.55f,1f,.2f,.95f);
-        return new Color(.56f,.62f,1f,.95f);
+        if(dimension==World.Darkness)return new Color(.56f,.62f,1f,.95f);
+        return new Color(.22f,.86f,1f,.98f);
     }
     Vector2 AtmosphereDrift(World dimension)
     {
@@ -308,6 +321,7 @@ public sealed class LADIDGame : MonoBehaviour
         if(dimension==World.Tidal)return new Vector2(1.1f,.08f);
         if(dimension==World.Earthquake)return new Vector2(.15f,.12f);
         if(dimension==World.AcidRain)return new Vector2(.08f,-1.4f);
+        if(dimension==World.Typhoon)return new Vector2(.8f,.45f);
         return new Vector2(.08f,.18f);
     }
     void BuildAtmosphere()
@@ -337,7 +351,7 @@ public sealed class LADIDGame : MonoBehaviour
         else if(world==World.Tidal){shape.position=new Vector3(-7.8f,0,0);shape.scale=new Vector3(.4f,10f,.05f);}
         else if(world==World.AcidRain){shape.position=new Vector3(0,5.1f,0);shape.scale=new Vector3(16f,.35f,.05f);}
         else {shape.position=Vector3.zero;shape.scale=new Vector3(16f,10f,.05f);}
-        float baseRate=world==World.AcidRain?24f:world==World.Tidal?16f:world==World.Volcano?13f:10f;
+        float baseRate=world==World.AcidRain?24f:world==World.Tidal?16f:world==World.Volcano?13f:world==World.Typhoon?22f:10f;
         var emission=atmosphere.emission;emission.rateOverTime=baseRate+(overlapMode?8f:0f)+Mathf.Min(stage-1,10)*1.2f;
         atmosphere.Play(true);
     }
@@ -372,6 +386,7 @@ public sealed class LADIDGame : MonoBehaviour
         world=next; phaseDuration=Random.Range(10f,20f); phaseTime=phaseDuration;
         bool darknessActive=IsWorldActive(World.Darkness);darknessOverlay.gameObject.SetActive(darknessActive);
         if(darknessActive)CreateDarknessLights();
+        if(IsWorldActive(World.Typhoon))CreateTyphoon();
         ConfigureAtmosphere();
         splitVisualRoot.gameObject.SetActive(overlapMode);
         Color auraTint=WorldAccentColor(world);auraTint.a=.16f;playerAura.color=auraTint;
@@ -384,11 +399,63 @@ public sealed class LADIDGame : MonoBehaviour
         else
         {
             Color fieldColor=Color.Lerp(new Color(.2f,.19f,.19f),WorldFieldColor(next),.72f);SetMapVisualColors(fieldColor,fieldColor,WorldAccentColor(world));
-            cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):next==World.Tidal?new Color(.04f,.19f,.27f):next==World.Earthquake?new Color(.16f,.12f,.09f):next==World.AcidRain?new Color(.08f,.16f,.09f):new Color(.01f,.015f,.035f);
-            worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":next==World.Tidal?"02  /  TIDAL WORLD":next==World.Earthquake?"03  /  FRACTURED EARTH":next==World.AcidRain?"04  /  ACID RAIN":"05  /  DARKNESS";
-            messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":next==World.Tidal?"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN":next==World.Earthquake?"EARTHQUAKE WORLD  •  LEAVE THE CRACKING GROUND BEFORE IT OPENS":next==World.AcidRain?"ACID RAIN WORLD  •  DODGE THE FALLING DROPS":"DARKNESS WORLD  •  STAY INSIDE THE LIGHT";
+            cam.backgroundColor=next==World.Volcano?new Color(.12f,.09f,.1f):next==World.Tidal?new Color(.04f,.19f,.27f):next==World.Earthquake?new Color(.16f,.12f,.09f):next==World.AcidRain?new Color(.08f,.16f,.09f):next==World.Darkness?new Color(.01f,.015f,.035f):new Color(.025f,.09f,.14f);
+            worldText.text=next==World.Volcano?"01  /  VOLCANIC WASTELAND":next==World.Tidal?"02  /  TIDAL WORLD":next==World.Earthquake?"03  /  FRACTURED EARTH":next==World.AcidRain?"04  /  ACID RAIN":next==World.Darkness?"05  /  DARKNESS":"06  /  TYPHOON";
+            messageText.text=next==World.Volcano?"VOLCANIC WORLD  •  MOVE OUT OF THE RED WARNING CIRCLES":next==World.Tidal?"TIDAL WORLD  •  EVADE THE HORIZONTAL WAVE BY MOVING UP OR DOWN":next==World.Earthquake?"EARTHQUAKE WORLD  •  LEAVE THE CRACKING GROUND BEFORE IT OPENS":next==World.AcidRain?"ACID RAIN WORLD  •  DODGE THE FALLING DROPS":next==World.Darkness?"DARKNESS WORLD  •  STAY INSIDE THE LIGHT":"TYPHOON WORLD  •  ESCAPE THE MOVING VORTEX'S PULL";
         }
         banner.gameObject.SetActive(false);
+    }
+    void CreateTyphoon()
+    {
+        GameObject root=new GameObject("Moving Typhoon");root.transform.SetParent(hazardsRoot,false);
+        root.transform.position=RandomWorldPosition(-6f,6f,-3.3f,3.3f);
+        GameObject aura=Disc("Typhoon glow",Vector2.zero,2.7f,new Color(.12f,.68f,.9f,.13f),2);aura.transform.SetParent(root.transform,false);aura.transform.localPosition=Vector3.zero;
+        if(typhoonVortexSprite==null)typhoonVortexSprite=CreateTyphoonVortexSprite();
+        GameObject vortex=new GameObject("Cyclone spiral");vortex.transform.SetParent(root.transform,false);vortex.transform.localPosition=new Vector3(0,0,-.1f);vortex.transform.localScale=Vector3.one*2.6f;
+        SpriteRenderer vortexRenderer=vortex.AddComponent<SpriteRenderer>();vortexRenderer.sprite=typhoonVortexSprite;vortexRenderer.color=new Color(.35f,.88f,1f,.95f);vortexRenderer.sortingOrder=4;
+        GameObject eye=Disc("Typhoon eye",Vector2.zero,.52f,new Color(.025f,.12f,.2f,.96f),4);eye.transform.SetParent(root.transform,false);eye.transform.localPosition=new Vector3(0,0,-.12f);
+        GameObject eyeLight=Disc("Typhoon eye light",Vector2.zero,.16f,new Color(.55f,.96f,1f,.95f),5);eyeLight.transform.SetParent(root.transform,false);eyeLight.transform.localPosition=new Vector3(0,0,-.14f);
+        typhoon=new TyphoonData{root=root.transform,vortex=vortex.transform,target=RandomWorldPosition(-6.8f,6.8f,-4f,4f),retargetTime=Random.Range(1.8f,3.2f)};
+    }
+    void UpdateTyphoon(float dt,ref Vector2 playerPosition)
+    {
+        if(changing||!typhoon||!typhoon.root||!IsWorldActive(World.Typhoon))return;
+        typhoon.retargetTime-=dt;
+        if(typhoon.retargetTime<=0f)
+        {
+            typhoon.target=RandomWorldPosition(-6.8f,6.8f,-4f,4f);
+            typhoon.retargetTime=Random.Range(2.2f,4.4f);
+        }
+        float stageFactor=Mathf.Sqrt(Mathf.Max(0,stage-1));
+        float movementSpeed=.55f+stageFactor*.12f;
+        typhoon.root.position=Vector2.MoveTowards(typhoon.root.position,typhoon.target,movementSpeed*dt);
+        typhoon.vortex.Rotate(0f,0f,dt*(35f+stageFactor*5f));
+        float pulse=1f+Mathf.Sin(Time.time*2.1f)*.035f;typhoon.vortex.localScale=Vector3.one*(2.6f*pulse);
+        Vector2 toEye=(Vector2)typhoon.root.position-playerPosition;float distance=toEye.magnitude;
+        const float pullRadius=5.8f;
+        if(distance>0.001f&&distance<pullRadius)
+        {
+            float pullStrength=1.65f+stageFactor*.16f;
+            float falloff=1f-distance/pullRadius;
+            playerPosition+=toEye/distance*(pullStrength*falloff*dt);
+        }
+    }
+    static Sprite CreateTyphoonVortexSprite()
+    {
+        const int size=160;var pixels=new Color[size*size];Vector2 center=Vector2.one*((size-1)*.5f);
+        for(int y=0;y<size;y++)for(int x=0;x<size;x++)
+        {
+            Vector2 delta=(new Vector2(x,y)-center)/((size-1)*.5f);float radius=delta.magnitude;
+            if(radius>1f)continue;
+            float angle=Mathf.Atan2(delta.y,delta.x);float spiral=Mathf.Sin(angle+radius*15f);
+            float arms=Mathf.Pow(Mathf.Clamp01((spiral-.15f)/.85f),7f)*Mathf.SmoothStep(.12f,.28f,radius)*(1f-Mathf.SmoothStep(.88f,1f,radius));
+            float outerRing=Mathf.Exp(-Mathf.Pow((radius-.91f)/.035f,2f))*.88f;
+            float innerRing=Mathf.Exp(-Mathf.Pow((radius-.28f)/.035f,2f))*.62f;
+            float alpha=Mathf.Clamp01(arms*.78f+outerRing+innerRing);
+            pixels[y*size+x]=new Color(1f,1f,1f,alpha);
+        }
+        var texture=new Texture2D(size,size,TextureFormat.RGBA32,false){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
+        texture.SetPixels(pixels);texture.Apply();return Sprite.Create(texture,new Rect(0,0,size,size),new Vector2(.5f,.5f),80f);
     }
     IEnumerator HideBanner(){yield return new WaitForSeconds(1.1f);if(!changing)banner.gameObject.SetActive(false);}
     IEnumerator VolcanoLoop(){while(true){yield return new WaitForSeconds(Random.Range(.65f,1.2f));if(ended||changing||!IsWorldActive(World.Volcano))continue;int projectileCount=Mathf.Min(stage,6);for(int i=0;i<projectileCount;i++)StartCoroutine(Meteor(RandomWorldPosition(-7.3f,7.3f,-4.3f,4.3f)));}}
@@ -602,8 +669,8 @@ public sealed class LADIDGame : MonoBehaviour
         }
     }
     void TakeDamage(float amount){if(ended)return;health=Mathf.Max(0,health-amount);if(livesText)livesText.text="HEALTH  "+Mathf.CeilToInt(health).ToString("000")+" / 100";flashTime=.2f;damageTintTime=.18f;if(health<=0){ended=true;messageText.text="";banner.gameObject.SetActive(false);gameOverRoot.SetActive(true);}}
-    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();tsunamiLightSources.Clear();if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
-    void Restart(){StopAllCoroutines();ClearHazards();banner.gameObject.SetActive(false);gameOverRoot.SetActive(false);health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,5);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
+    void ClearHazards(){for(int i=hazardsRoot.childCount-1;i>=0;i--)Destroy(hazardsRoot.GetChild(i).gameObject);fissures.Clear();lightZones.Clear();tsunamiLightSources.Clear();typhoon=null;if(darknessOverlay)darknessOverlay.gameObject.SetActive(false);}
+    void Restart(){StopAllCoroutines();ClearHazards();banner.gameObject.SetActive(false);gameOverRoot.SetActive(false);health=100f;survived=0;stage=1;ended=false;changing=false;falling=false;overlapMode=false;flashTime=0;damageTintTime=0;cameraShake=0;cam.transform.position=new Vector3(0,0,-10);playerRenderer.color=playerColor;player.localScale=Vector3.one*.52f;player.position=Vector3.zero;world=(World)Random.Range(0,6);secondaryWorld=world;SetWorld(world,true);StartCoroutine(PhaseLoop());StartCoroutine(VolcanoLoop());StartCoroutine(TideLoop());StartCoroutine(EarthquakeLoop());StartCoroutine(AcidRainLoop());}
     GameObject Rect(string n,Vector3 p,float w,float h,Color c,int order){var o=new GameObject(n);o.transform.position=p;o.transform.localScale=new Vector3(w,h,1);var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Square;r.color=c;r.sortingOrder=order;return o;}
     GameObject Disc(string n,Vector2 p,float s,Color c,int order){var o=new GameObject(n);o.transform.SetParent(hazardsRoot,false);o.transform.position=p;o.transform.localScale=Vector3.one*s;var r=o.AddComponent<SpriteRenderer>();r.sprite=Sprites.Circle;r.color=c;r.sortingOrder=order;return o;}
     static Sprite CreateTransitionGlowSprite()
