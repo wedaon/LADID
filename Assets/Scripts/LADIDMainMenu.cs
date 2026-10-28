@@ -43,7 +43,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
     MenuConfig config;
     readonly Dictionary<string,MenuElementConfig> elements=new Dictionary<string,MenuElementConfig>();
     readonly Dictionary<string,RectTransform> buttonRects=new Dictionary<string,RectTransform>();
-    GameObject settingsRoot;
+    GameObject settingsRoot,creditsRoot;
     Slider volumeSlider;
     Toggle fullscreenToggle;
     Image fullscreenCheck;
@@ -84,10 +84,25 @@ public sealed class LADIDMainMenu : MonoBehaviour
     {
         if(!pendingMenuClick)return;
         pendingMenuClick=false;
-        string target=settingsRoot&&settingsRoot.activeSelf?"backButton":"settingsButton";
-        if(!buttonRects.TryGetValue(target,out RectTransform rect)||!rect||!rect.gameObject.activeInHierarchy)return;
-        if(!RectTransformUtility.RectangleContainsScreenPoint(rect,pendingMenuPointer,null))return;
-        if(target=="settingsButton")OpenSettings();else CloseSettings();
+        if(creditsRoot&&creditsRoot.activeSelf)
+        {
+            if(ButtonContainsPointer("creditsBackButton")){CloseCredits();return;}
+            if(ButtonContainsPointer("kenneySourceButton")){Application.OpenURL("https://opengameart.org/content/sci-fi-sounds");return;}
+            if(ButtonContainsPointer("glassSourceButton")){Application.OpenURL("https://opengameart.org/content/glass-break");return;}
+            return;
+        }
+        if(settingsRoot&&settingsRoot.activeSelf)
+        {
+            if(ButtonContainsPointer("creditsButton")){OpenCredits();return;}
+            if(ButtonContainsPointer("backButton"))CloseSettings();
+            return;
+        }
+        if(ButtonContainsPointer("settingsButton"))OpenSettings();
+    }
+    bool ButtonContainsPointer(string id)
+    {
+        if(!buttonRects.TryGetValue(id,out RectTransform rect)||!rect||!rect.gameObject.activeInHierarchy)return false;
+        return RectTransformUtility.RectangleContainsScreenPoint(rect,pendingMenuPointer,null);
     }
 
     MenuConfig LoadConfig()
@@ -192,9 +207,33 @@ public sealed class LADIDMainMenu : MonoBehaviour
             E("fullscreenToggle","전체 화면 토글","toggle","settings","",37,57.2f,2.5f,4.4f,8,bg:"#212F3D",alpha:1,click:true),
             E("fullscreenCheck","전체 화면 체크 표시","image","settings","",37,57.2f,1.25f,2.2f,9,useAccent:true,alpha:1),
             E("fullscreenLabel","전체 화면 설명","text","settings","전체 화면",53.5f,57.2f,20.3f,4.7f,9,18,"Malgun Gothic",align:"Left",color:"#D4E3EF"),
+            E("creditsButton","크레딧 버튼 배경","button","settings","",50,79.5f,18f,6.8f,10,bg:"#080F17",alpha:.96f,click:true),
+            E("creditsButtonAccent","크레딧 버튼 강조선","image","settings","",41.1f,79.5f,.24f,6.8f,11,useAccent:true,alpha:1),
+            E("creditsButtonText","크레딧 버튼 글자","text","settings","크레딧",50,79.5f,18f,6.8f,12,18,"Malgun Gothic"),
             E("backButton","뒤로 버튼 배경","button","settings","",50,90.8f,18f,7.2f,10,bg:"#124057",alpha:.96f,click:true),
             E("backButtonAccent","뒤로 버튼 강조선","image","settings","",41.1f,90.8f,.24f,7.2f,11,useAccent:true,alpha:1),
             E("backButtonText","뒤로 버튼 글자","text","settings","뒤로",50,90.8f,18f,7.2f,12,20,"Malgun Gothic"),
+
+            E("creditsOverlay","크레딧 배경 어둡게","image","credits","",50,50,100,100,0,bg:"#04070A",alpha:.88f),
+            E("creditsPanel","크레딧 패널","image","credits","",50,49,72f,82f,1,bg:"#131C29",alpha:1),
+            E("creditsAccent","크레딧 패널 상단선","image","credits","",50,8,.72f,.42f,2,useAccent:true,alpha:1),
+            E("creditsTitle","크레딧 제목","text","credits","CREDITS",50,16,62f,7f,3,32,"Arial"),
+            E("creditsIntro","크레딧 안내","text","credits","효과음 출처 및 사용 파일 · CC0 라이선스",50,24,64f,4.5f,3,16,"Malgun Gothic",color:"#B8CDDC"),
+            E("creditVolcano","화산 효과음 출처","text","credits","화산 경고·폭발  ·  laserRetro_000 / explosionCrunch_001",50,32,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("creditTsunami","쓰나미 효과음 출처","text","credits","쓰나미 접근  ·  spaceEngineLarge_000",50,37,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("creditEarthquake","지진 효과음 출처","text","credits","지진 균열·충돌  ·  impactMetal_002",50,42,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("creditAcidRain","산성비 효과음 출처","text","credits","산성비 피격  ·  slime_001",50,47,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("creditDarkness","어둠 효과음 출처","text","credits","어둠의 빛·피격  ·  forceField_000",50,52,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("creditTyphoon","태풍 효과음 출처","text","credits","태풍 소용돌이 배경음  ·  engineCircular_000",50,57,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("creditGlass","거울 전환 효과음 출처","text","credits","유리 파열  ·  glass_breaking.wav  ·  Till Behrend",50,62,64f,4.3f,3,14,"Malgun Gothic",align:"Left",color:"#E2EDF5"),
+            E("kenneySourceButton","Kenney 출처 버튼","button","credits","",35,72,26f,6.4f,5,bg:"#124057",alpha:.96f,click:true),
+            E("kenneySourceText","Kenney 출처 글자","text","credits","Kenney 원본 페이지",35,72,26f,6.4f,6,14,"Malgun Gothic"),
+            E("glassSourceButton","유리 효과음 출처 버튼","button","credits","",65,72,26f,6.4f,5,bg:"#124057",alpha:.96f,click:true),
+            E("glassSourceText","유리 효과음 출처 글자","text","credits","Glass Break 원본 페이지",65,72,26f,6.4f,6,14,"Malgun Gothic"),
+            E("creditsLicense","크레딧 라이선스 안내","text","credits","Kenney Sci-Fi Sounds 및 Glass Break · CC0 1.0 · 출처 표시는 의무가 아닌 감사의 표시입니다.",50,80,66f,4.5f,3,12,"Malgun Gothic",color:"#91A6B7"),
+            E("creditsBackButton","크레딧 뒤로 버튼","button","credits","",50,86,18f,6.4f,8,bg:"#080F17",alpha:.96f,click:true),
+            E("creditsBackAccent","크레딧 뒤로 강조선","image","credits","",41.1f,86,.24f,6.4f,9,useAccent:true,alpha:1),
+            E("creditsBackText","크레딧 뒤로 글자","text","credits","뒤로",50,86,18f,6.4f,10,18,"Malgun Gothic")
         };
     }
 
@@ -223,11 +262,12 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Canvas canvas=canvasObject.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=20;
         CanvasScaler scaler=canvasObject.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
         settingsRoot=new GameObject("Settings Group",typeof(RectTransform));settingsRoot.transform.SetParent(canvas.transform,false);Stretch(settingsRoot.GetComponent<RectTransform>());
+        creditsRoot=new GameObject("Credits Group",typeof(RectTransform));creditsRoot.transform.SetParent(canvas.transform,false);Stretch(creditsRoot.GetComponent<RectTransform>());
 
         foreach(MenuElementConfig element in config.elements.Where(item=>item!=null).OrderBy(item=>item.group=="settings"?1:0).ThenBy(item=>item.layer))
         {
             if(element.group=="gameover")continue;
-            Transform parent=element.group=="settings"?settingsRoot.transform:canvas.transform;
+            Transform parent=element.group=="credits"?creditsRoot.transform:element.group=="settings"?settingsRoot.transform:canvas.transform;
             if(element.type=="image")CreateImageElement(parent,element);
             else if(element.type=="text")CreateTextElement(parent,element);
             else if(element.type=="button")CreateButtonElement(parent,element);
@@ -235,8 +275,8 @@ public sealed class LADIDMainMenu : MonoBehaviour
             else if(element.type=="toggle")CreateToggleElement(parent,element);
         }
         if(fullscreenToggle&&fullscreenCheck)fullscreenToggle.graphic=fullscreenCheck;
-        settingsRoot.transform.SetAsLastSibling();
-        UpdateVolumeDisplay(AudioListener.volume);settingsRoot.SetActive(false);
+        settingsRoot.transform.SetAsLastSibling();creditsRoot.transform.SetAsLastSibling();
+        UpdateVolumeDisplay(AudioListener.volume);settingsRoot.SetActive(false);creditsRoot.SetActive(false);
     }
 
     void EnsureMenuCamera()
@@ -253,7 +293,7 @@ public sealed class LADIDMainMenu : MonoBehaviour
     void CreateImageElement(Transform parent,MenuElementConfig element)
     {
         GameObject imageObject=new GameObject(element.label,typeof(RectTransform),typeof(Image));imageObject.transform.SetParent(parent,false);
-        ApplyRect(imageObject.GetComponent<RectTransform>(),element);Image image=imageObject.GetComponent<Image>();image.color=GetBackgroundColor(element);image.raycastTarget=element.id=="settingsOverlay";
+        ApplyRect(imageObject.GetComponent<RectTransform>(),element);Image image=imageObject.GetComponent<Image>();image.color=GetBackgroundColor(element);image.raycastTarget=element.id=="settingsOverlay"||element.id=="creditsOverlay";
         if(element.id=="fullscreenCheck")fullscreenCheck=image;
         imageObject.SetActive(element.visible);
     }
@@ -276,6 +316,8 @@ public sealed class LADIDMainMenu : MonoBehaviour
         Button button=buttonObject.GetComponent<Button>();button.enabled=true;button.targetGraphic=image;button.interactable=element.interactable;
         ColorBlock colors=button.colors;colors.normalColor=image.color;colors.highlightedColor=Color.Lerp(image.color,accent,.3f);colors.pressedColor=Color.Lerp(image.color,accent,.55f);colors.selectedColor=colors.highlightedColor;button.colors=colors;
         if(element.id=="startButton")button.onClick.AddListener(StartGame);
+        else if(element.id=="creditsButton")button.onClick.AddListener(OpenCredits);
+        else if(element.id=="creditsBackButton")button.onClick.AddListener(CloseCredits);
         else if(element.id.IndexOf("settings",StringComparison.OrdinalIgnoreCase)>=0||element.label.Contains("설정"))button.onClick.AddListener(OpenSettings);
         else if(element.id=="quitButton")button.onClick.AddListener(QuitGame);
         else if(element.id=="backButton")button.onClick.AddListener(CloseSettings);
@@ -340,8 +382,10 @@ public sealed class LADIDMainMenu : MonoBehaviour
     }
 
     void StartGame(){SceneManager.LoadScene("InPlay");}
-    void OpenSettings(){if(settingsRoot)settingsRoot.SetActive(true);}
-    void CloseSettings(){if(settingsRoot)settingsRoot.SetActive(false);}
+    void OpenSettings(){if(creditsRoot)creditsRoot.SetActive(false);if(settingsRoot){settingsRoot.SetActive(true);settingsRoot.transform.SetAsLastSibling();}}
+    void CloseSettings(){if(settingsRoot)settingsRoot.SetActive(false);if(creditsRoot)creditsRoot.SetActive(false);}
+    void OpenCredits(){if(settingsRoot)settingsRoot.SetActive(false);if(creditsRoot){creditsRoot.SetActive(true);creditsRoot.transform.SetAsLastSibling();}}
+    void CloseCredits(){if(creditsRoot)creditsRoot.SetActive(false);if(settingsRoot){settingsRoot.SetActive(true);settingsRoot.transform.SetAsLastSibling();}}
     void QuitGame()
     {
         Application.Quit();
